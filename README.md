@@ -274,20 +274,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- **Documentation**: [Wiki](https://github.com/yourusername/VigilantRaccoon/wiki)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/VigilantRaccoon/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/VigilantRaccoon/discussions)
-- **Email**: support@yourdomain.com
+- **Documentation**: [Wiki](https://github.com/QuentinHelion/VigilantRaccoon/wiki)
+- **Issues**: [GitHub Issues](https://github.com/QuentinHelion/VigilantRaccoon/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/QuentinHelion/VigilantRaccoon/discussions)
+- **Email**: support@qhelion.fr
 
 ---
 
 <div align="center">
   <p><strong>Made with ❤️ for the security community</strong></p>
   
-  [![GitHub stars](https://img.shields.io/github/stars/yourusername/VigilantRaccoon?style=social)](https://github.com/yourusername/VigilantRaccoon/stargazers)
-  [![GitHub forks](https://img.shields.io/github/forks/yourusername/VigilantRaccoon?style=social)](https://github.com/yourusername/VigilantRaccoon/network)
-  [![GitHub issues](https://img.shields.io/github/issues/yourusername/VigilantRaccoon)](https://github.com/yourusername/VigilantRaccoon/issues)
-  [![GitHub pull requests](https://img.shields.io/github/issues-pr/yourusername/VigilantRaccoon)](https://github.com/yourusername/VigilantRaccoon/pulls)
+  [![GitHub stars](https://img.shields.io/github/stars/yourusername/VigilantRaccoon?style=social)](https://github.com/QuentinHelion/VigilantRaccoon/stargazers)
+  [![GitHub forks](https://img.shields.io/github/forks/yourusername/VigilantRaccoon?style=social)](https://github.com/QuentinHelion/VigilantRaccoon/network)
+  [![GitHub issues](https://img.shields.io/github/issues/yourusername/VigilantRaccoon)](https://github.com/QuentinHelion/VigilantRaccoon/issues)
+  [![GitHub pull requests](https://img.shields.io/github/issues-pr/yourusername/VigilantRaccoon)](https://github.com/QuentinHelion/VigilantRaccoon/pulls)
   
   <p><em>Keep your servers safe with VigilantRaccoon! ��🔒</em></p>
 </div>
