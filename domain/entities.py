@@ -15,6 +15,9 @@ class Alert:
     ip_address: Optional[str] = None
     rule: Optional[str] = None
     id: Optional[int] = None
+    acknowledged: bool = False
+    acknowledged_at: Optional[datetime] = None
+    acknowledged_by: Optional[str] = None
 
 
 @dataclass

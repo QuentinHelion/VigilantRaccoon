@@ -13,7 +13,15 @@ class AlertRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def list_alerts(self, limit: int = 200, since: Optional[datetime] = None) -> List[Alert]:
+    def list_alerts(self, limit: int = 200, since: Optional[datetime] = None, acknowledged: Optional[bool] = None) -> List[Alert]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def acknowledge_alert(self, alert_id: int, acknowledged_by: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def acknowledge_alerts_by_rule(self, rule: str, acknowledged_by: str) -> int:
         raise NotImplementedError
 
 

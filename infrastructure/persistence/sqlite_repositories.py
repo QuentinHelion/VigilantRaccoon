@@ -26,13 +26,21 @@ def _ensure_db(path: str) -> None:
                 message TEXT NOT NULL,
                 ip_address TEXT,
                 rule TEXT,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                acknowledged BOOLEAN DEFAULT FALSE,
+                acknowledged_at TEXT,
+                acknowledged_by TEXT
             );
             """
         )
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_alerts_timestamp ON alerts(timestamp);
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_alerts_acknowledged ON alerts(acknowledged);
             """
         )
         conn.execute(
@@ -74,8 +82,8 @@ class SQLiteAlertRepository(AlertRepository):
         with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
             conn.executemany(
                 """
-                INSERT INTO alerts (server_name, source_log, timestamp, level, message, ip_address, rule, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO alerts (server_name, source_log, timestamp, level, message, ip_address, rule, created_at, acknowledged, acknowledged_at, acknowledged_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -87,6 +95,9 @@ class SQLiteAlertRepository(AlertRepository):
                         a.ip_address,
                         a.rule,
                         now,
+                        a.acknowledged,
+                        a.acknowledged_at.isoformat() if a.acknowledged_at else None,
+                        a.acknowledged_by,
                     )
                     for a in alerts_list
                 ],
@@ -94,12 +105,22 @@ class SQLiteAlertRepository(AlertRepository):
             conn.commit()
         return len(alerts_list)
 
-    def list_alerts(self, limit: int = 200, since: Optional[datetime] = None) -> List[Alert]:
-        query = "SELECT id, server_name, source_log, timestamp, level, message, ip_address, rule FROM alerts"
+    def list_alerts(self, limit: int = 200, since: Optional[datetime] = None, acknowledged: Optional[bool] = None) -> List[Alert]:
+        query = "SELECT id, server_name, source_log, timestamp, level, message, ip_address, rule, acknowledged, acknowledged_at, acknowledged_by FROM alerts"
         params: list = []
+        where_clauses = []
+        
         if since is not None:
-            query += " WHERE timestamp >= ?"
+            where_clauses.append("timestamp >= ?")
             params.append(since.isoformat())
+        
+        if acknowledged is not None:
+            where_clauses.append("acknowledged = ?")
+            params.append(acknowledged)
+        
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
+        
         query += " ORDER BY timestamp DESC LIMIT ?"
         params.append(int(limit))
 
@@ -118,9 +139,42 @@ class SQLiteAlertRepository(AlertRepository):
                     message=r[5],
                     ip_address=r[6],
                     rule=r[7],
+                    acknowledged=bool(r[8]),
+                    acknowledged_at=datetime.fromisoformat(r[9]) if r[9] else None,
+                    acknowledged_by=r[10],
                 )
             )
         return alerts
+
+    def acknowledge_alert(self, alert_id: int, acknowledged_by: str) -> bool:
+        """Mark an alert as acknowledged."""
+        now = datetime.utcnow()
+        with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE alerts 
+                SET acknowledged = TRUE, acknowledged_at = ?, acknowledged_by = ?
+                WHERE id = ?
+                """,
+                (now.isoformat(), acknowledged_by, alert_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def acknowledge_alerts_by_rule(self, rule: str, acknowledged_by: str) -> int:
+        """Acknowledge all alerts with a specific rule."""
+        now = datetime.utcnow()
+        with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE alerts 
+                SET acknowledged = TRUE, acknowledged_at = ?, acknowledged_by = ?
+                WHERE rule = ? AND acknowledged = FALSE
+                """,
+                (now.isoformat(), acknowledged_by, rule),
+            )
+            conn.commit()
+            return cursor.rowcount
 
 
 class SQLiteStateRepository(StateRepository):
