@@ -87,17 +87,57 @@ cp config.yaml.example config.yaml
 
 # Run the application
 python run.py
+
+# Or with options
+python run.py --help                    # Show all available options
+python run.py --recreate-db            # Recreate database from scratch
+python run.py --config custom.yaml     # Use custom config file
 ```
 
-### Docker (Optional)
+### Docker (Recommended)
 
 ```bash
-# Build the Docker image
-docker build -t vigilant-raccoon .
+# Start with Docker Compose (includes nginx reverse proxy)
+./docker-start.sh
 
-# Run with Docker
-docker run -p 8000:8000 -v $(pwd)/config.yaml:/app/config.yaml vigilant-raccoon
+# Or manually with docker-compose
+docker-compose up --build -d
+
+# View logs
+docker-compose logs -f vigilant-raccoon
+
+# Stop services
+docker-compose down
 ```
+
+### Launch Options
+
+The application supports several command-line options for different use cases:
+
+```bash
+# Basic usage
+python run.py
+
+# Show help and available options
+python run.py --help
+
+# Recreate database from scratch (WARNING: Deletes all data)
+python run.py --recreate-db
+
+# Use custom configuration file
+python run.py --config production.yaml
+
+# Combine options
+python run.py --config test.yaml --recreate-db
+```
+
+**⚠️ Warning:** The `--recreate-db` option will **permanently delete** all existing data including alerts, servers, and exceptions. Use with extreme caution!
+
+The Docker setup includes:
+- **VigilantRaccoon**: Main application container
+- **Nginx**: Reverse proxy with SSL/TLS, rate limiting, and security headers
+- **Automatic SSL**: Self-signed certificates (can be replaced with real ones)
+- **Health checks**: Built-in monitoring for container health
 
 ---
 
@@ -220,6 +260,48 @@ The application uses SSH key-based or password authentication for server access.
 - **SSH connection failures**: Automatic retry with exponential backoff
 - **Log parsing errors**: Graceful degradation with error logging
 - **Database errors**: Transaction rollback and error reporting
+
+### Alert Exceptions
+
+VigilantRaccoon includes a flexible alert exception system to reduce false positives:
+
+#### Exception Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `ip` | Filter alerts by IP address | `192.168.1.100` |
+| `username` | Filter alerts by username | `admin` |
+| `server` | Filter alerts by server name | `web-server` |
+| `log_source` | Filter alerts by log source | `journal:ssh` |
+| `rule_pattern` | Filter alerts by rule pattern | `sshd_accepted` |
+
+#### Managing Exceptions
+
+1. **Web Interface**: Navigate to `/ui/exceptions`
+2. **API Endpoints**:
+   - `GET /exceptions` - List all exceptions
+   - `POST /exceptions` - Create new exception
+   - `PUT /exceptions/{id}` - Update exception
+   - `DELETE /exceptions/{id}` - Delete exception
+
+#### Example Exception Rules
+
+```yaml
+# Ignore SSH logins from monitoring IPs
+- rule_type: "ip"
+  value: "192.168.1.50"
+  description: "Monitoring server IP"
+
+# Ignore specific usernames
+- rule_type: "username"
+  value: "debian"
+  description: "Default Debian user"
+
+# Ignore specific log sources
+- rule_type: "log_source"
+  value: "journal:ssh"
+  description: "SSH service logs"
+```
 
 ---
 

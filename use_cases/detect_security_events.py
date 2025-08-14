@@ -36,8 +36,32 @@ def parse_timestamp(line: str, now: datetime) -> datetime | None:
         mon = MONTHS.get(m.group("mon"))
         day = int(m.group("day"))
         time_part = m.group("time")
+        
+        if mon is None:
+            return None
+            
+        # Try to determine the correct year for the log entry
+        # Start with current year and adjust if needed
+        year = now.year
+        
+        # Create the timestamp
         try:
-            return datetime.fromisoformat(f"{now.year:04d}-{mon:02d}-{day:02d}T{time_part}")
+            log_time = datetime.fromisoformat(f"{year:04d}-{mon:02d}-{day:02d}T{time_part}")
+            
+            # If the log time is more than 6 months in the future, it's probably from last year
+            # (e.g., if we're in January and the log is from December)
+            if log_time > now and (now.month - log_time.month) > 6:
+                year -= 1
+                log_time = datetime.fromisoformat(f"{year:04d}-{mon:02d}-{day:02d}T{time_part}")
+            
+            # If the log time is more than 6 months in the past, it's probably from next year
+            # (e.g., if we're in December and the log is from January)
+            elif log_time < now and (log_time.month - now.month) > 6:
+                year += 1
+                log_time = datetime.fromisoformat(f"{year:04d}-{mon:02d}-{day:02d}T{time_part}")
+            
+            return log_time
+            
         except Exception:
             return None
 
@@ -55,33 +79,33 @@ def detect_alerts(server_name: str, source_log: str, lines: Iterable[str], now: 
 
         if m := FAIL2BAN_BAN_RE.search(line):
             ip = m.group("ip")
-            alerts.append(Alert(server_name, source_log, ts, "high", line.strip(), ip, rule="fail2ban_ban"))
+            alerts.append(Alert(server_name=server_name, log_source=source_log, rule="fail2ban_ban", level="high", message=line.strip(), ip_address=ip, timestamp=ts))
             continue
         if m := FAIL2BAN_UNBAN_RE.search(line):
             ip = m.group("ip")
-            alerts.append(Alert(server_name, source_log, ts, "info", line.strip(), ip, rule="fail2ban_unban"))
+            alerts.append(Alert(server_name=server_name, log_source=source_log, rule="fail2ban_unban", level="info", message=line.strip(), ip_address=ip, timestamp=ts))
             continue
         if SSHD_FAILED_RE.search(line):
             ip = None
             if m_ip := IPV4_RE.search(line):
                 ip = m_ip.group(0)
-            alerts.append(Alert(server_name, source_log, ts, "medium", line.strip(), ip, rule="sshd_failed"))
+            alerts.append(Alert(server_name=server_name, log_source=source_log, rule="sshd_failed", level="medium", message=line.strip(), ip_address=ip, timestamp=ts))
             continue
         if PAM_AUTH_FAIL_RE.search(line):
             ip = None
             if m_ip := IPV4_RE.search(line):
                 ip = m_ip.group(0)
-            alerts.append(Alert(server_name, source_log, ts, "medium", line.strip(), ip, rule="pam_auth_failure"))
+            alerts.append(Alert(server_name=server_name, log_source=source_log, rule="pam_auth_failure", level="medium", message=line.strip(), ip_address=ip, timestamp=ts))
             continue
         if m := SSHD_ACCEPTED_RE.search(line):
             ip = m.group("ip")
-            alerts.append(Alert(server_name, source_log, ts, "info", line.strip(), ip, rule="sshd_accepted"))
+            alerts.append(Alert(server_name=server_name, log_source=source_log, rule="sshd_accepted", level="info", message=line.strip(), ip_address=ip, timestamp=ts))
             continue
         if BREAKIN_RE.search(line):
             ip = None
             if m_ip := IPV4_RE.search(line):
                 ip = m_ip.group(0)
-            alerts.append(Alert(server_name, source_log, ts, "high", line.strip(), ip, rule="break_in_attempt"))
+            alerts.append(Alert(server_name=server_name, log_source=source_log, rule="break_in_attempt", level="high", message=line.strip(), ip_address=ip, timestamp=ts))
             continue
 
     return alerts

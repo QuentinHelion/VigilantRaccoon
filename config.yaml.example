@@ -1,34 +1,64 @@
+# VigilantRaccoon Configuration Example
+# Copy this file to config.yaml and edit with your settings
+
 servers:
-  - name: server1
-    host: 192.168.1.10
+  - name: web-server
+    host: 192.168.1.100
     port: 22
-    username: ubuntu
-    # choose one authentication method
-    password: null
-    private_key_path: ~/.ssh/id_rsa
+    username: admin
+    # Choose one authentication method
+    password: your_password_here
+    #private_key_path: ~/.ssh/id_rsa
     logs:
-      - /var/log/auth.log
+      - journal:ssh            # Debian/Ubuntu
+      - journal:sshd           # RHEL/CentOS
       - /var/log/fail2ban.log
 
+  - name: database-server
+    host: 192.168.1.101
+    port: 22
+    username: admin
+    password: your_password_here
+    logs:
+      - journal:ssh
+      - /var/log/fail2ban.log
+
+# Log collection interval (in seconds)
 poll_interval_seconds: 60
 
+# Email notification settings
 email:
-  enabled: false
-  smtp_host: smtp.example.com
+  enabled: true
+  smtp_host: smtp.gmail.com
   smtp_port: 587
   use_tls: true
-  username: user@example.com
-  password: your_password
-  from_addr: alerts@example.com
+  username: your_email@gmail.com
+  password: your_app_password
+  from_addr: alerts@yourdomain.com
   to_addrs:
-    - you@example.com
+    - admin@yourdomain.com
+    - security@yourdomain.com
 
+# Storage configuration
 storage:
   sqlite_path: ./data/vigilant_raccoon.db
 
+# Log collection settings
 collection:
   tail_lines: 2000
+  ignore_source_ips: 
+    - "127.0.0.1"
+    - "192.168.1.50"  # Monitoring server IP
 
+# Web interface settings
 web:
-  host: 127.0.0.1
+  host: "0.0.0.0"  # Use 0.0.0.0 for Docker
   port: 8000
+
+# Logging configuration
+logging:
+  level: INFO           # DEBUG, INFO, WARNING, ERROR
+  file_path: ./logs/app.log
+  max_bytes: 1000000    # 1 MB
+  backup_count: 3
+  console: true         # Set to false in production

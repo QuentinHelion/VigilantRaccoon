@@ -121,7 +121,7 @@ class EmailNotifier:
                             {level_badge}
                             <span class="alert-timestamp">{timestamp}</span>
                         </div>
-                        <div class="alert-server">🖥️ {alert.server_name} - {alert.source_log}</div>
+                        <div class="alert-server">🖥️ {alert.server_name} - {alert.log_source}</div>
                         <div style="margin: 5px 0;">
                             <strong>IP:</strong> {ip_display}
                             {f'<br><strong>Rule:</strong> <span class="alert-ip">{alert.rule}</span>' if alert.rule else ''}
@@ -234,7 +234,7 @@ class EmailNotifier:
                                 <span class="alert-timestamp">{timestamp}</span>
                             </div>
                             <div style="margin: 5px 0;">
-                                <strong>Source:</strong> {alert.source_log}<br>
+                                <strong>Source:</strong> {alert.log_source}<br>
                                 <strong>IP:</strong> {ip_display}
                             </div>
                             <div class="alert-message">{alert.message}</div>
@@ -271,7 +271,7 @@ class EmailNotifier:
         
         for a in alerts:
             body_lines.extend([
-                f"[{a.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}] {a.level.upper()} {a.server_name} {a.source_log}",
+                f"[{a.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}] {a.level.upper()} {a.server_name} {a.log_source}",
                 f"IP: {a.ip_address or 'N/A'}",
                 f"Rule: {a.rule or 'N/A'}",
                 f"Message: {a.message}",
@@ -313,7 +313,7 @@ class EmailNotifier:
             for a in server_alerts:
                 body_lines.extend([
                     f"  • [{a.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}] {a.rule.upper()}",
-                    f"    Source: {a.source_log}",
+                    f"    Source: {a.log_source}",
                     f"    IP: {a.ip_address or 'N/A'}",
                     f"    Message: {a.message}",
                     ""

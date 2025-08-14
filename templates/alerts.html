@@ -1,0 +1,473 @@
+{% extends "layout.html" %}
+
+{% block title %}Security Alerts - VigilantRaccoon{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        margin-bottom: 2rem;
+    }
+    
+    .page-header h1 {
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+    
+    .page-header p {
+        color: #6c757d;
+    }
+    
+    .filters {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+        border: 1px solid #e9ecef;
+    }
+    
+    .filters-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        align-items: end;
+    }
+    
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .filter-group label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .filter-group select,
+    .filter-group input {
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    
+    .filter-group select:focus,
+    .filter-group input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+    }
+    
+    .refresh-btn {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: all 0.3s;
+        align-self: end;
+    }
+    
+    .refresh-btn:hover {
+        background: #5a6fd8;
+        transform: translateY(-1px);
+    }
+    
+    .stats {
+        background: #e9ecef;
+        padding: 1rem 1.5rem;
+        border-radius: 6px;
+        margin-bottom: 2rem;
+        font-size: 0.9rem;
+        color: #495057;
+    }
+    
+    .table-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    .alerts-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    
+    .alerts-table th {
+        background: #f8f9fa;
+        padding: 1rem 0.75rem;
+        text-align: left;
+        font-weight: 600;
+        color: #495057;
+        border-bottom: 2px solid #dee2e6;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .alerts-table td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #eee;
+        vertical-align: top;
+    }
+    
+    .alerts-table tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .level-high {
+        color: #dc3545;
+        font-weight: 600;
+    }
+    
+    .level-medium {
+        color: #fd7e14;
+        font-weight: 600;
+    }
+    
+    .level-info {
+        color: #17a2b8;
+        font-weight: 600;
+    }
+    
+    .message {
+        max-width: 300px;
+        word-break: break-word;
+    }
+    
+    .timestamp {
+        white-space: nowrap;
+        font-family: monospace;
+        font-size: 0.8rem;
+        color: #666;
+    }
+    
+    .server {
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .ip {
+        font-family: monospace;
+        background: #f8f9fa;
+        padding: 0.25rem 0.5rem;
+        border-radius: 3px;
+        font-size: 0.8rem;
+    }
+    
+    .rule {
+        font-size: 0.8rem;
+        color: #6c757d;
+        background: #e9ecef;
+        padding: 0.25rem 0.5rem;
+        border-radius: 3px;
+    }
+    
+    .ack-btn {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 0.4rem 0.8rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        margin: 0.2rem;
+        transition: background 0.3s;
+    }
+    
+    .ack-btn:hover {
+        background: #218838;
+    }
+    
+    .ack-btn:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+    }
+    
+    .bulk-ack {
+        background: #17a2b8;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        margin-left: 0.5rem;
+        transition: background 0.3s;
+    }
+    
+    .bulk-ack:hover {
+        background: #138496;
+    }
+    
+    .acknowledged {
+        opacity: 0.6;
+        background: #f8f9fa;
+    }
+    
+    .acknowledged .ack-btn {
+        display: none;
+    }
+    
+    .ack-status {
+        font-size: 0.8rem;
+        color: #6c757d;
+        font-style: italic;
+        margin-top: 0.5rem;
+    }
+    
+    .no-alerts {
+        text-align: center;
+        padding: 3rem;
+        color: #666;
+        font-style: italic;
+    }
+    
+    .loading {
+        text-align: center;
+        padding: 3rem;
+        color: #666;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🔒 Security Alerts</h1>
+    <p>Monitor and manage security events across your infrastructure</p>
+</div>
+
+<div class="filters">
+    <div class="filters-grid">
+        <div class="filter-group">
+            <label>Server</label>
+            <select id="serverFilter">
+                <option value="">All servers</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Level</label>
+            <select id="levelFilter">
+                <option value="">All levels</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="info">Info</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Status</label>
+            <select id="ackFilter">
+                <option value="">All</option>
+                <option value="false">Unacknowledged</option>
+                <option value="true">Acknowledged</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Limit</label>
+            <select id="limitFilter">
+                <option value="100">100</option>
+                <option value="200" selected>200</option>
+                <option value="500">500</option>
+                <option value="1000">1000</option>
+            </select>
+        </div>
+        <button class="refresh-btn" onclick="loadAlerts()">🔄 Refresh</button>
+    </div>
+</div>
+
+<div class="stats" id="stats">Loading statistics...</div>
+
+<div class="table-container">
+    <table class="alerts-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Timestamp</th>
+                <th>Level</th>
+                <th>Server</th>
+                <th>Log Source</th>
+                <th>IP Address</th>
+                <th>Rule</th>
+                <th>Message</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="alertsTable">
+            <tr>
+                <td colspan="9" class="loading">Loading alerts...</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentAlerts = [];
+let servers = [];
+
+async function loadServers() {
+    try {
+        const response = await fetch('/api/servers');
+        servers = await response.json();
+        const serverFilter = document.getElementById('serverFilter');
+        serverFilter.innerHTML = '<option value="">All servers</option>';
+        servers.forEach(s => {
+            const option = document.createElement('option');
+            option.value = s.name;
+            option.textContent = s.name;
+            serverFilter.appendChild(option);
+        });
+    } catch (e) {
+        console.error('Failed to load servers:', e);
+    }
+}
+
+async function loadAlerts() {
+    try {
+        const serverFilter = document.getElementById('serverFilter').value;
+        const levelFilter = document.getElementById('levelFilter').value;
+        const ackFilter = document.getElementById('ackFilter').value;
+        const limitFilter = document.getElementById('limitFilter').value;
+        
+        let url = `/api/alerts?limit=${limitFilter}`;
+        if (serverFilter) url += `&server=${encodeURIComponent(serverFilter)}`;
+        if (levelFilter) url += `&level=${encodeURIComponent(levelFilter)}`;
+        if (ackFilter) url += `&acknowledged=${ackFilter}`;
+        
+        const response = await fetch(url);
+        currentAlerts = await response.json();
+        renderAlerts();
+        updateStats();
+    } catch (e) {
+        console.error('Failed to load alerts:', e);
+        document.getElementById('alertsTable').innerHTML = '<tr><td colspan="9" class="no-alerts">Failed to load alerts</td></tr>';
+    }
+}
+
+async function acknowledgeAlert(alertId) {
+    try {
+        const response = await fetch(`/api/alerts/${alertId}/acknowledge`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acknowledged_by: 'web_user' })
+        });
+        if (response.ok) {
+            loadAlerts();
+        } else {
+            alert('Failed to acknowledge alert');
+        }
+    } catch (e) {
+        console.error('Failed to acknowledge alert:', e);
+        alert('Failed to acknowledge alert');
+    }
+}
+
+async function acknowledgeByRule(rule) {
+    if (!confirm(`Acknowledge all unacknowledged alerts with rule '${rule}'?`)) return;
+    try {
+        const response = await fetch('/api/alerts/acknowledge-by-rule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rule: rule, acknowledged_by: 'web_user' })
+        });
+        if (response.ok) {
+            const result = await response.json();
+            alert(`Acknowledged ${result.acknowledged_count} alerts`);
+            loadAlerts();
+        } else {
+            alert('Failed to acknowledge alerts');
+        }
+    } catch (e) {
+        console.error('Failed to acknowledge alerts:', e);
+        alert('Failed to acknowledge alerts');
+    }
+}
+
+function renderAlerts() {
+    const tbody = document.getElementById('alertsTable');
+    if (currentAlerts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="no-alerts">No alerts found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = currentAlerts.map(alert => {
+        const levelClass = `level-${alert.level}`;
+        const timestamp = new Date(alert.timestamp).toLocaleString();
+        const rowClass = alert.acknowledged ? 'acknowledged' : '';
+        const ackStatus = alert.acknowledged ? `Acknowledged by ${alert.acknowledged_by} at ${new Date(alert.acknowledged_at).toLocaleString()}` : '';
+        
+        return `
+            <tr class="${rowClass}">
+                <td>${alert.id || ''}</td>
+                <td class="timestamp">${timestamp}</td>
+                <td><span class="${levelClass}">${alert.level.toUpperCase()}</span></td>
+                <td class="server">${alert.server_name}</td>
+                <td>${alert.source_log}</td>
+                <td>${alert.ip_address ? `<span class="ip">${alert.ip_address}</span>` : ''}</td>
+                <td><span class="rule">${alert.rule || ''}</span></td>
+                <td class="message">${escapeHtml(alert.message)}</td>
+                <td>
+                    ${alert.acknowledged ? '' : `<button class="ack-btn" onclick="acknowledgeAlert(${alert.id})">✓ Ack</button>`}
+                    ${alert.rule ? `<button class="bulk-ack" onclick="acknowledgeByRule('${alert.rule}')">Ack All ${alert.rule}</button>` : ''}
+                    ${ackStatus ? `<div class="ack-status">${ackStatus}</div>` : ''}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function updateStats() {
+    const stats = document.getElementById('stats');
+    const total = currentAlerts.length;
+    const acknowledged = currentAlerts.filter(a => a.acknowledged).length;
+    const unacknowledged = total - acknowledged;
+    const byLevel = currentAlerts.reduce((acc, a) => {
+        acc[a.level] = (acc[a.level] || 0) + 1;
+        return acc;
+    }, {});
+    const byServer = currentAlerts.reduce((acc, a) => {
+        acc[a.server_name] = (acc[a.server_name] || 0) + 1;
+        return acc;
+    }, {});
+    
+    stats.innerHTML = `
+        <strong>${total}</strong> total alerts | 
+        <span style="color:#28a745">${acknowledged} acknowledged</span> | 
+        <span style="color:#dc3545">${unacknowledged} unacknowledged</span> | 
+        High: <span class="level-high">${byLevel.high || 0}</span> | 
+        Medium: <span class="level-medium">${byLevel.medium || 0}</span> | 
+        Info: <span class="level-info">${byLevel.info || 0}</span> | 
+        Servers: ${Object.keys(byServer).length}
+    `;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Event listeners
+document.getElementById('serverFilter').addEventListener('change', loadAlerts);
+document.getElementById('levelFilter').addEventListener('change', loadAlerts);
+document.getElementById('ackFilter').addEventListener('change', loadAlerts);
+document.getElementById('limitFilter').addEventListener('change', loadAlerts);
+
+// Initialize
+loadServers();
+loadAlerts();
+
+// Auto-refresh every 30 seconds
+setInterval(loadAlerts, 30000);
+</script>
+{% endblock %}

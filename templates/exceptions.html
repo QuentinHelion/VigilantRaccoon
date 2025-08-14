@@ -1,0 +1,469 @@
+{% extends "layout.html" %}
+
+{% block title %}Alert Exceptions - VigilantRaccoon{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        margin-bottom: 2rem;
+    }
+    
+    .page-header h1 {
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+    
+    .page-header p {
+        color: #6c757d;
+    }
+    
+    .form-section {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .form-section h3 {
+        margin: 0 0 1.5rem 0;
+        color: #495057;
+        font-size: 1.3rem;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 0.8rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: #495057;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        box-sizing: border-box;
+        transition: border-color 0.3s;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+    }
+    
+    .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .checkbox-group input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+    }
+    
+    .submit-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .submit-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(102,126,234,0.3);
+    }
+    
+    .exceptions-section {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        padding: 2rem;
+    }
+    
+    .exceptions-section h3 {
+        color: #495057;
+        margin-bottom: 1.5rem;
+        font-size: 1.3rem;
+    }
+    
+    .exceptions-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1.5rem;
+        font-size: 0.9rem;
+    }
+    
+    .exceptions-table th,
+    .exceptions-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .exceptions-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .exception-row:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .edit-btn {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: background 0.3s;
+    }
+    
+    .edit-btn:hover {
+        background: #218838;
+    }
+    
+    .delete-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: background 0.3s;
+    }
+    
+    .delete-btn:hover {
+        background: #c82333;
+    }
+    
+    .toggle-btn {
+        background: #ffc107;
+        color: #212529;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: background 0.3s;
+    }
+    
+    .toggle-btn:hover {
+        background: #e0a800;
+    }
+    
+    .enabled {
+        color: #28a745;
+        font-weight: 600;
+    }
+    
+    .disabled {
+        color: #dc3545;
+        font-weight: 600;
+    }
+    
+    .no-exceptions {
+        text-align: center;
+        color: #666;
+        font-style: italic;
+        padding: 2rem;
+    }
+    
+    .loading {
+        text-align: center;
+        color: #666;
+        padding: 2rem;
+    }
+    
+    .help-text {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+        line-height: 1.4;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🔒 Alert Exceptions</h1>
+    <p>Create and manage exception rules to filter out false positive alerts</p>
+</div>
+
+<div class="form-section">
+    <h3>➕ Add New Exception Rule</h3>
+    <form id="exceptionForm">
+        <div class="form-group">
+            <label for="ruleType">Rule Type:</label>
+            <select id="ruleType" name="ruleType" required>
+                <option value="">Select rule type...</option>
+                <option value="ip">IP Address</option>
+                <option value="username">Username</option>
+                <option value="server">Server Name</option>
+                <option value="log_source">Log Source</option>
+                <option value="rule_pattern">Rule Pattern</option>
+            </select>
+            <div class="help-text">
+                <strong>IP Address:</strong> Filter alerts by source IP address<br>
+                <strong>Username:</strong> Filter alerts by username<br>
+                <strong>Server Name:</strong> Filter alerts by server name<br>
+                <strong>Log Source:</strong> Filter alerts by log source (e.g., journal:ssh)<br>
+                <strong>Rule Pattern:</strong> Filter alerts by rule pattern (e.g., sshd_accepted)
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="value">Value:</label>
+            <input type="text" id="value" name="value" placeholder="Enter value to match..." required>
+            <div class="help-text">
+                Examples: <code>192.168.1.100</code>, <code>admin</code>, <code>web-server</code>, <code>journal:ssh</code>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="description">Description:</label>
+            <textarea id="description" name="description" placeholder="Describe why this exception exists..." rows="3"></textarea>
+            <div class="help-text">
+                Optional description to explain why this exception rule exists
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="enabled" name="enabled" checked>
+                <label for="enabled">Enabled</label>
+            </div>
+            <div class="help-text">
+                Disable this rule temporarily without deleting it
+            </div>
+        </div>
+        <button type="submit">Create Exception</button>
+    </form>
+</div>
+
+<div class="exceptions-section">
+    <h3>📋 Current Exception Rules</h3>
+    <table class="exceptions-table">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Value</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="exceptionsTable">
+            <tr>
+                <td colspan="6" class="loading">Loading exceptions...</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentExceptions = [];
+
+async function loadExceptions() {
+    try {
+        const response = await fetch('/api/exceptions');
+        if (response.ok) {
+            currentExceptions = await response.json();
+            renderExceptions();
+        } else {
+            console.error('Failed to load exceptions');
+        }
+    } catch (e) {
+        console.error('Failed to load exceptions:', e);
+    }
+}
+
+function renderExceptions() {
+    const tbody = document.getElementById('exceptionsTable');
+    if (currentExceptions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="no-exceptions">No exceptions found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = currentExceptions.map(exception => {
+        const statusClass = exception.enabled ? 'enabled' : 'disabled';
+        const statusText = exception.enabled ? 'Enabled' : 'Disabled';
+        const createdDate = new Date(exception.created_at).toLocaleDateString();
+        
+        return `
+            <tr class="exception-row">
+                <td><strong>${exception.rule_type}</strong></td>
+                <td><code>${exception.value}</code></td>
+                <td>${exception.description || '-'}</td>
+                <td><span class="${statusClass}">${statusText}</span></td>
+                <td>${createdDate}</td>
+                <td class="action-buttons">
+                    <button class="edit-btn" onclick="editException(${exception.id})">✏️ Edit</button>
+                    <button class="toggle-btn" onclick="toggleException(${exception.id}, ${!exception.enabled})">${exception.enabled ? '🔴 Disable' : '🟢 Enable'}</button>
+                    <button class="delete-btn" onclick="deleteException(${exception.id})">🗑️ Delete</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function createException(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const data = {
+        rule_type: formData.get('ruleType'),
+        value: formData.get('value'),
+        description: formData.get('description'),
+        enabled: formData.get('enabled') === 'on'
+    };
+    
+    try {
+        const response = await fetch('/api/exceptions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            alert('Exception created successfully!');
+            event.target.reset();
+            loadExceptions();
+        } else {
+            const error = await response.json();
+            alert('Failed to create exception: ' + (error.error || 'Unknown error'));
+        }
+    } catch (e) {
+        console.error('Failed to create exception:', e);
+        alert('Failed to create exception');
+    }
+}
+
+async function toggleException(id, enabled) {
+    try {
+        const exception = currentExceptions.find(e => e.id === id);
+        if (!exception) return;
+        
+        exception.enabled = enabled;
+        const response = await fetch(`/api/exceptions/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(exception)
+        });
+        
+        if (response.ok) {
+            loadExceptions();
+        } else {
+            alert('Failed to toggle exception');
+        }
+    } catch (e) {
+        console.error('Failed to toggle exception:', e);
+        alert('Failed to toggle exception');
+    }
+}
+
+async function deleteException(id) {
+    if (!confirm('Are you sure you want to delete this exception?')) return;
+    
+    try {
+        const response = await fetch(`/api/exceptions/${id}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            loadExceptions();
+        } else {
+            alert('Failed to delete exception');
+        }
+    } catch (e) {
+        console.error('Failed to delete exception:', e);
+        alert('Failed to delete exception');
+    }
+}
+
+async function editException(id) {
+    const exception = currentExceptions.find(e => e.id === id);
+    if (!exception) return;
+    
+    // Populate form for editing
+    document.getElementById('ruleType').value = exception.rule_type;
+    document.getElementById('value').value = exception.value;
+    document.getElementById('description').value = exception.description || '';
+    document.getElementById('enabled').checked = exception.enabled;
+    
+    // Change form to update mode
+    const form = document.getElementById('exceptionForm');
+    form.dataset.editId = id;
+    form.onsubmit = updateException;
+    document.querySelector('#exceptionForm button[type="submit"]').textContent = 'Update Exception';
+}
+
+async function updateException(event) {
+    event.preventDefault();
+    const editId = event.target.dataset.editId;
+    if (!editId) return;
+    
+    const formData = new FormData(event.target);
+    const data = {
+        rule_type: formData.get('ruleType'),
+        value: formData.get('value'),
+        description: formData.get('description'),
+        enabled: formData.get('enabled') === 'on'
+    };
+    
+    try {
+        const response = await fetch(`/api/exceptions/${editId}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            alert('Exception updated successfully!');
+            event.target.reset();
+            delete event.target.dataset.editId;
+            event.target.onsubmit = createException;
+            document.querySelector('#exceptionForm button[type="submit"]').textContent = 'Create Exception';
+            loadExceptions();
+        } else {
+            const error = await response.json();
+            alert('Failed to update exception: ' + (error.error || 'Unknown error'));
+        }
+    } catch (e) {
+        console.error('Failed to update exception:', e);
+        alert('Failed to update exception');
+    }
+}
+
+// Event listeners
+document.getElementById('exceptionForm').addEventListener('submit', createException);
+
+// Initialize
+loadExceptions();
+</script>
+{% endblock %}

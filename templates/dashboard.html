@@ -1,0 +1,252 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard - VigilantRaccoon{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-header {
+        text-align: center;
+        margin-bottom: 3rem;
+    }
+    
+    .dashboard-header h1 {
+        font-size: 2.5rem;
+        color: #495057;
+        margin-bottom: 1rem;
+    }
+    
+    .dashboard-header p {
+        color: #6c757d;
+        font-size: 1.1rem;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 2rem;
+        margin-bottom: 3rem;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        border-left: 4px solid #667eea;
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stat-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin-bottom: 3rem;
+    }
+    
+    .action-card {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        text-align: center;
+        transition: transform 0.3s;
+    }
+    
+    .action-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .action-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+    
+    .action-title {
+        font-size: 1.3rem;
+        color: #495057;
+        margin-bottom: 1rem;
+    }
+    
+    .action-description {
+        color: #6c757d;
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+    }
+    
+    .admin-section {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 2rem;
+        border: 2px solid #e9ecef;
+    }
+    
+    .admin-section h3 {
+        color: #6c757d;
+        margin-bottom: 1.5rem;
+        text-align: center;
+    }
+    
+    .admin-warning {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        color: #856404;
+        padding: 1rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+    
+    .refresh-info {
+        background: #d1ecf1;
+        border: 1px solid #bee5eb;
+        color: #0c5460;
+        padding: 1rem;
+        border-radius: 6px;
+        margin-top: 1rem;
+        text-align: center;
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1>🦝 VigilantRaccoon</h1>
+    <p>Advanced Security Monitoring System for Linux Servers</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number" id="totalAlerts">-</div>
+        <div class="stat-label">Total Alerts</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="unacknowledgedAlerts">-</div>
+        <div class="stat-label">Unacknowledged</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="totalServers">-</div>
+        <div class="stat-label">Monitored Servers</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="criticalAlerts">-</div>
+        <div class="stat-label">Critical Alerts</div>
+    </div>
+</div>
+
+<div class="quick-actions">
+    <div class="action-card">
+        <div class="action-icon">🔒</div>
+        <div class="action-title">Security Alerts</div>
+        <div class="action-description">View and manage all security alerts, acknowledge incidents, and track security events across your infrastructure.</div>
+        <a href="/alerts" class="btn btn-primary">View Alerts</a>
+    </div>
+    
+    <div class="action-card">
+        <div class="action-icon">🖥️</div>
+        <div class="action-title">Server Management</div>
+        <div class="action-description">Configure monitoring servers, manage SSH connections, and set up log sources for comprehensive security monitoring.</div>
+        <a href="/servers" class="btn btn-primary">Manage Servers</a>
+    </div>
+    
+    <div class="action-card">
+        <div class="action-icon">🚫</div>
+        <div class="action-title">Alert Exceptions</div>
+        <div class="action-description">Create and manage exception rules to filter out false positives and reduce alert noise.</div>
+        <a href="/exceptions" class="btn btn-primary">Manage Exceptions</a>
+    </div>
+</div>
+
+<div class="admin-section">
+    <h3>🔧 Administration</h3>
+    <div class="admin-warning">
+        <strong>⚠️ WARNING:</strong> The following action will delete ALL existing data and recreate the database from scratch!
+    </div>
+    <div style="text-align: center;">
+        <button class="btn btn-danger" onclick="recreateDatabase()" id="recreateBtn">🗑️ Recreate Database</button>
+        <div id="recreateStatus" style="margin-top: 1rem; font-size: 0.9rem;"></div>
+    </div>
+    <div class="refresh-info">
+        <strong>ℹ️ Info:</strong> The system automatically refreshes data every 30 seconds. Use the refresh button on individual pages for immediate updates.
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadDashboardStats() {
+    try {
+        // Load alerts count
+        const alertsResponse = await fetch('/api/alerts?limit=1000');
+        if (alertsResponse.ok) {
+            const alerts = await alertsResponse.json();
+            const total = alerts.length;
+            const unacknowledged = alerts.filter(a => !a.acknowledged).length;
+            const critical = alerts.filter(a => a.level === 'high').length;
+            
+            document.getElementById('totalAlerts').textContent = total;
+            document.getElementById('unacknowledgedAlerts').textContent = unacknowledged;
+            document.getElementById('criticalAlerts').textContent = critical;
+        }
+        
+        // Load servers count
+        const serversResponse = await fetch('/api/servers');
+        if (serversResponse.ok) {
+            const servers = await serversResponse.json();
+            document.getElementById('totalServers').textContent = servers.length;
+        }
+    } catch (error) {
+        console.error('Failed to load dashboard stats:', error);
+    }
+}
+
+async function recreateDatabase() {
+    if (!confirm("⚠️ WARNING: This will delete ALL existing data (alerts, servers, exceptions) and recreate the database from scratch!\n\nAre you absolutely sure you want to continue?")) {
+        return;
+    }
+    
+    const btn = document.getElementById("recreateBtn");
+    const status = document.getElementById("recreateStatus");
+    
+    btn.disabled = true;
+    btn.textContent = "🔄 Processing...";
+    status.innerHTML = "Recreating database...";
+    
+    try {
+        const response = await fetch("/admin/recreate-db", { method: "POST" });
+        if (response.ok) {
+            status.innerHTML = "✅ Database recreated successfully! Refreshing page...";
+            setTimeout(() => window.location.reload(), 2000);
+        } else {
+            const error = await response.text();
+            status.innerHTML = "❌ Error: " + error;
+        }
+    } catch (e) {
+        status.innerHTML = "❌ Error: " + e.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "🗑️ Recreate Database";
+    }
+}
+
+// Load stats on page load
+loadDashboardStats();
+
+// Refresh stats every 30 seconds
+setInterval(loadDashboardStats, 30000);
+</script>
+{% endblock %}

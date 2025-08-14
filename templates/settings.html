@@ -1,0 +1,484 @@
+{% extends "layout.html" %}
+{% block title %}Settings - VigilantRaccoon{% endblock %}
+{% block extra_css %}
+<style>
+    .settings-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .settings-section {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .settings-section h3 {
+        margin-top: 0;
+        color: #333;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 10px;
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #555;
+    }
+    
+    .form-group input, .form-group select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .form-group input[type="number"] {
+        width: 150px;
+    }
+    
+    .form-group input[type="checkbox"] {
+        width: auto;
+        margin-right: 10px;
+    }
+    
+    .form-group .help-text {
+        font-size: 12px;
+        color: #666;
+        margin-top: 5px;
+    }
+    
+    .btn-save {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 10px;
+    }
+    
+    .btn-save:hover {
+        background: #218838;
+    }
+    
+    .btn-save:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+    }
+    
+    .btn-trigger {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 10px;
+        margin-left: 10px;
+    }
+    
+    .btn-trigger:hover {
+        background: #0056b3;
+    }
+    
+    .btn-debug {
+        background: #6f42c1;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 10px;
+        margin-left: 10px;
+    }
+    
+    .btn-debug:hover {
+        background: #5a32a3;
+    }
+    
+    .status-message {
+        padding: 10px;
+        border-radius: 4px;
+        margin-top: 10px;
+        display: none;
+    }
+    
+    .status-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .status-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .current-status {
+        background: #e7f3ff;
+        border: 1px solid #b3d9ff;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .status-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        padding: 8px 0;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .status-item:last-child {
+        border-bottom: none;
+    }
+    
+    .status-label {
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .status-value {
+        color: #666;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="settings-container">
+    <h2>⚙️ Application Settings</h2>
+    
+    <div class="current-status">
+        <h3>Current Status</h3>
+        <div class="status-item">
+            <span class="status-label">Collection Status:</span>
+            <span class="status-value" id="collectionStatus">Loading...</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Last Check:</span>
+            <span class="status-value" id="lastCheck">Loading...</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Next Check:</span>
+            <span class="status-value" id="nextCheck">Loading...</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Active Servers:</span>
+            <span class="status-value" id="activeServers">Loading...</span>
+        </div>
+    </div>
+    
+    <div class="settings-section">
+        <h3>🔄 Collection Settings</h3>
+        <form id="collectionForm">
+            <div class="form-group">
+                <label for="pollInterval">Check Interval (seconds):</label>
+                <input type="number" id="pollInterval" name="pollInterval" min="30" max="3600" value="60">
+                <div class="help-text">How often to check servers for new logs (30 seconds to 1 hour)</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="tailLines">Log Lines to Check:</label>
+                <input type="number" id="tailLines" name="tailLines" min="100" max="10000" value="2000">
+                <div class="help-text">Number of recent log lines to analyze per check</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="ignoreSourceIPs">Ignore Source IPs:</label>
+                <input type="text" id="ignoreSourceIPs" name="ignoreSourceIPs" placeholder="192.168.1.1, 10.0.0.1">
+                <div class="help-text">Comma-separated list of IPs to ignore (e.g., monitoring servers)</div>
+            </div>
+            
+            <button type="submit" class="btn-save">Save Collection Settings</button>
+            <button type="button" class="btn-trigger" onclick="triggerCollection()">🔄 Trigger Collection Now</button>
+            <button type="button" class="btn-debug" onclick="showCollectionDebug()">🐛 Show Collection Debug</button>
+        </form>
+    </div>
+    
+    <div class="settings-section">
+        <h3>📧 Email Settings</h3>
+        <form id="emailForm">
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="emailEnabled" name="emailEnabled">
+                    Enable Email Notifications
+                </label>
+            </div>
+            
+            <div class="form-group">
+                <label for="smtpHost">SMTP Host:</label>
+                <input type="text" id="smtpHost" name="smtpHost" placeholder="smtp.gmail.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="smtpPort">SMTP Port:</label>
+                <input type="number" id="smtpPort" name="smtpPort" value="587">
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="useTLS" name="useTLS" checked>
+                    Use TLS
+                </label>
+            </div>
+            
+            <div class="form-group">
+                <label for="emailUsername">Email Username:</label>
+                <input type="text" id="emailUsername" name="emailUsername" placeholder="your-email@gmail.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="emailPassword">Email Password:</label>
+                <input type="password" id="emailPassword" name="emailPassword" placeholder="App password or regular password">
+            </div>
+            
+            <div class="form-group">
+                <label for="fromAddr">From Address:</label>
+                <input type="email" id="fromAddr" name="fromAddr" placeholder="alerts@yourdomain.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="toAddrs">To Addresses:</label>
+                <input type="text" id="toAddrs" name="toAddrs" placeholder="admin@yourdomain.com, security@yourdomain.com">
+                <div class="help-text">Comma-separated list of email addresses</div>
+            </div>
+            
+            <button type="submit" class="btn-save">Save Email Settings</button>
+        </form>
+    </div>
+    
+    <div class="settings-section">
+        <h3>🗄️ Storage Settings</h3>
+        <form id="storageForm">
+            <div class="form-group">
+                <label for="databasePath">Database Path:</label>
+                <input type="text" id="databasePath" name="databasePath" value="./data/vigilant_raccoon.db" readonly>
+                <div class="help-text">SQLite database file location (read-only)</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="logPath">Log File Path:</label>
+                <input type="text" id="logPath" name="logPath" value="./logs/app.log" readonly>
+                <div class="help-text">Application log file location (read-only)</div>
+            </div>
+        </form>
+    </div>
+    
+    <div class="status-message" id="statusMessage"></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+    let currentConfig = {};
+    
+    async function loadCurrentStatus() {
+        try {
+            const response = await fetch('/api/status');
+            const status = await response.json();
+            
+            document.getElementById('collectionStatus').textContent = status.collection_running ? '🟢 Running' : '🔴 Stopped';
+            document.getElementById('lastCheck').textContent = status.last_check || 'Never';
+            document.getElementById('nextCheck').textContent = status.next_check || 'Unknown';
+            document.getElementById('activeServers').textContent = status.active_servers || '0';
+        } catch (error) {
+            console.error('Failed to load status:', error);
+        }
+    }
+    
+    async function loadCurrentConfig() {
+        try {
+            const response = await fetch('/api/config');
+            currentConfig = await response.json();
+            
+            // Populate collection settings
+            document.getElementById('pollInterval').value = currentConfig.poll_interval_seconds || 60;
+            document.getElementById('tailLines').value = currentConfig.collection?.tail_lines || 2000;
+            document.getElementById('ignoreSourceIPs').value = (currentConfig.collection?.ignore_source_ips || []).join(', ');
+            
+            // Populate email settings
+            document.getElementById('emailEnabled').checked = currentConfig.email?.enabled || false;
+            document.getElementById('smtpHost').value = currentConfig.email?.smtp_host || '';
+            document.getElementById('smtpPort').value = currentConfig.email?.smtp_port || 587;
+            document.getElementById('useTLS').checked = currentConfig.email?.use_tls !== false;
+            document.getElementById('emailUsername').value = currentConfig.email?.username || '';
+            document.getElementById('fromAddr').value = currentConfig.email?.from_addr || '';
+            document.getElementById('toAddrs').value = (currentConfig.email?.to_addrs || []).join(', ');
+            
+            // Populate storage settings
+            document.getElementById('databasePath').value = currentConfig.storage?.sqlite_path || './data/vigilant_raccoon.db';
+            document.getElementById('logPath').value = currentConfig.logging?.file_path || './logs/app.log';
+            
+        } catch (error) {
+            console.error('Failed to load config:', error);
+            showStatus('Failed to load current configuration', 'error');
+        }
+    }
+    
+    async function saveCollectionSettings(event) {
+        event.preventDefault();
+        
+        const formData = {
+            poll_interval_seconds: parseInt(document.getElementById('pollInterval').value),
+            collection: {
+                tail_lines: parseInt(document.getElementById('tailLines').value),
+                ignore_source_ips: document.getElementById('ignoreSourceIPs').value.split(',').map(ip => ip.trim()).filter(ip => ip)
+            }
+        };
+        
+        try {
+            const response = await fetch('/api/config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+            
+            if (response.ok) {
+                showStatus('Collection settings saved successfully!', 'success');
+                loadCurrentStatus();
+            } else {
+                const error = await response.json();
+                showStatus(`Failed to save: ${error.error}`, 'error');
+            }
+        } catch (error) {
+            showStatus('Failed to save collection settings', 'error');
+        }
+    }
+    
+    async function saveEmailSettings(event) {
+        event.preventDefault();
+        
+        const formData = {
+            email: {
+                enabled: document.getElementById('emailEnabled').checked,
+                smtp_host: document.getElementById('smtpHost').value,
+                smtp_port: parseInt(document.getElementById('smtpPort').value),
+                use_tls: document.getElementById('useTLS').checked,
+                username: document.getElementById('emailUsername').value,
+                password: document.getElementById('emailPassword').value,
+                from_addr: document.getElementById('fromAddr').value,
+                to_addrs: document.getElementById('toAddrs').value.split(',').map(addr => addr.trim()).filter(addr => addr)
+            }
+        };
+        
+        try {
+            const response = await fetch('/api/config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+            
+            if (response.ok) {
+                showStatus('Email settings saved successfully!', 'success');
+                // Clear password field for security
+                document.getElementById('emailPassword').value = '';
+            } else {
+                const error = await response.json();
+                showStatus(`Failed to save: ${error.error}`, 'error');
+            }
+        } catch (error) {
+            showStatus('Failed to save email settings', 'error');
+        }
+    }
+    
+    async function triggerCollection() {
+        try {
+            const response = await fetch('/api/collection/trigger', {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                showStatus('Collection cycle triggered successfully!', 'success');
+                // Refresh status after a short delay
+                setTimeout(loadCurrentStatus, 2000);
+            } else {
+                const error = await response.json();
+                showStatus(`Failed to trigger collection: ${error.error}`, 'error');
+            }
+        } catch (error) {
+            showStatus('Failed to trigger collection', 'error');
+        }
+    }
+    
+    async function showCollectionDebug() {
+        try {
+            const response = await fetch('/api/collection/debug');
+            
+            if (response.ok) {
+                const debugInfo = await response.json();
+                
+                // Create a formatted debug display
+                let debugText = '=== COLLECTION DEBUG INFO ===\n\n';
+                debugText += `Collector Alive: ${debugInfo.collector_alive}\n`;
+                
+                if (debugInfo.collector_status) {
+                    debugText += `\nCollector Status:\n`;
+                    debugText += `  Running: ${debugInfo.collector_status.running}\n`;
+                    debugText += `  Last Check: ${debugInfo.collector_status.last_check_time || 'Never'}\n`;
+                    debugText += `  Next Check: ${debugInfo.collector_status.next_check_time || 'Unknown'}\n`;
+                    debugText += `  Poll Interval: ${debugInfo.collector_status.poll_interval} seconds\n`;
+                }
+                
+                debugText += `\nServers:\n`;
+                for (const server of debugInfo.servers) {
+                    debugText += `\n  ${server.name} (${server.host}):\n`;
+                    for (const [source, state] of Object.entries(server.collection_state)) {
+                        debugText += `    ${source}:\n`;
+                        debugText += `      Last Seen: ${state.last_seen_timestamp || 'Never'}\n`;
+                        if (state.last_seen_parsed) {
+                            debugText += `      Parsed: ${state.last_seen_parsed}\n`;
+                        }
+                        if (state.parse_error) {
+                            debugText += `      Parse Error: ${state.parse_error}\n`;
+                        }
+                    }
+                }
+                
+                // Show in a modal or alert
+                alert(debugText);
+                
+            } else {
+                const error = await response.json();
+                showStatus(`Failed to get debug info: ${error.error}`, 'error');
+            }
+        } catch (error) {
+            showStatus('Failed to get debug info', 'error');
+        }
+    }
+    
+    function showStatus(message, type) {
+        const statusDiv = document.getElementById('statusMessage');
+        statusDiv.textContent = message;
+        statusDiv.className = `status-message status-${type}`;
+        statusDiv.style.display = 'block';
+        
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 5000);
+    }
+    
+    // Event listeners
+    document.getElementById('collectionForm').addEventListener('submit', saveCollectionSettings);
+    document.getElementById('emailForm').addEventListener('submit', saveEmailSettings);
+    
+    // Load data on page load
+    loadCurrentConfig();
+    loadCurrentStatus();
+    
+    // Refresh status every 30 seconds
+    setInterval(loadCurrentStatus, 30000);
+</script>
+{% endblock %}

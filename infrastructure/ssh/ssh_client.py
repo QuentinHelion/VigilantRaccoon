@@ -25,21 +25,43 @@ class SSHLogClient:
             "look_for_keys": True,
             "allow_agent": True,
         }
+        
         if server.password:
             connect_kwargs["password"] = server.password
+            print(f"Using password authentication for {server.host}")
+        
         if server.private_key_path:
-            pkey = None
-            try:
-                pkey = paramiko.RSAKey.from_private_key_file(server.private_key_path)
-            except Exception:
+            import os
+            # Expand ~ to home directory
+            expanded_path = os.path.expanduser(server.private_key_path)
+            print(f"Trying private key: {expanded_path}")
+            
+            if not os.path.exists(expanded_path):
+                print(f"ERROR: Private key file not found: {expanded_path}")
+            else:
+                print(f"Private key file exists, attempting to load...")
+                pkey = None
                 try:
-                    pkey = paramiko.Ed25519Key.from_private_key_file(server.private_key_path)
-                except Exception:
-                    pkey = None
-            if pkey is not None:
-                connect_kwargs["pkey"] = pkey
+                    pkey = paramiko.RSAKey.from_private_key_file(expanded_path)
+                    print(f"Successfully loaded RSA key from {expanded_path}")
+                except Exception as e:
+                    print(f"Failed to load RSA key: {e}")
+                    try:
+                        pkey = paramiko.Ed25519Key.from_private_key_file(expanded_path)
+                        print(f"Successfully loaded Ed25519 key from {expanded_path}")
+                    except Exception as e2:
+                        print(f"Failed to load Ed25519 key: {e2}")
+                        pkey = None
+                
+                if pkey is not None:
+                    connect_kwargs["pkey"] = pkey
+                    print(f"Private key loaded successfully for {server.host}")
+                else:
+                    print(f"WARNING: Could not load private key for {server.host}")
 
+        print(f"Connecting to {server.host}:{server.port} as {server.username}")
         client.connect(**connect_kwargs)
+        print(f"Successfully connected to {server.host}")
         return client
 
     def _exec(self, client: paramiko.SSHClient, cmd: str) -> Tuple[str, str, int]:
