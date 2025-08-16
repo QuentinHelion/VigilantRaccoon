@@ -38,6 +38,9 @@
 - **SSH authentication monitoring** (successful/failed logins)
 - **PAM authentication failure detection**
 - **Break-in attempt identification**
+- **Process monitoring** for suspicious activities and malware detection
+- **Network connection monitoring** for outgoing connections and suspicious ports
+- **File activity monitoring** for suspicious files and dangerous permissions
 
 ### 🌐 **Web Interface**
 - **Modern, responsive dashboard** for security alerts

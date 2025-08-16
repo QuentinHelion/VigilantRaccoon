@@ -10,8 +10,8 @@ import yaml
 class ServerConfig:
     name: str
     host: str
-    port: int
     username: str
+    port: int = 22
     password: Optional[str] = None
     private_key_path: Optional[str] = None
     logs: List[str] = field(default_factory=list)
@@ -70,7 +70,12 @@ def load_config(path: str | Path) -> AppConfig:
     with open(path, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
 
-    servers = [ServerConfig(**srv) for srv in raw.get("servers", [])]
+    # Filtrage des champs valides pour ServerConfig
+    def filter_server_config(srv_data):
+        valid_fields = {'name', 'host', 'port', 'username', 'password', 'private_key_path', 'logs'}
+        return {k: v for k, v in srv_data.items() if k in valid_fields}
+    
+    servers = [ServerConfig(**filter_server_config(srv)) for srv in raw.get("servers", [])]
     email = EmailConfig(**(raw.get("email") or {}))
     storage = StorageConfig(**(raw.get("storage") or {}))
     collection = CollectionConfig(**(raw.get("collection") or {}))

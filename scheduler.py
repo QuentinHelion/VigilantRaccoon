@@ -16,6 +16,7 @@ from infrastructure.persistence.sqlite_repositories import (
 )
 from infrastructure.notifiers.email_notifier import EmailNotifier
 from use_cases.detect_security_events import detect_alerts
+from use_cases.process_monitoring import run_process_monitoring
 from domain.entities import Server
 
 
@@ -196,7 +197,18 @@ class CollectorThread(threading.Thread):
                     self._log.info("Found %d new lines out of %d total lines for %s:%s", len(recent_lines), len(lines), server.name, log_identifier)
 
                     try:
+                        # Détection des alertes de sécurité basées sur les logs
                         alerts = detect_alerts(server.name, log_identifier, recent_lines, now=now)
+                        
+                        # Ajout de la surveillance des processus (seulement pour le serveur local)
+                        if server.host in ['localhost', '127.0.0.1', '::1']:
+                            try:
+                                process_alerts = run_process_monitoring(server.name)
+                                alerts.extend(process_alerts)
+                                self._log.debug("Added %d process monitoring alerts for %s", len(process_alerts), server.name)
+                            except Exception as e:
+                                self._log.warning("Process monitoring failed for %s: %s", server.name, e)
+                        
                         # Filter out alerts from ignored IPs
                         if ignore_ips:
                             alerts = [a for a in alerts if not (a.ip_address and a.ip_address in ignore_ips)]
