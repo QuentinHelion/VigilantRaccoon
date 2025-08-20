@@ -2,610 +2,338 @@
 
 {% block title %}Server Management - VigilantRaccoon{% endblock %}
 
-{% block extra_css %}
-<style>
-    .page-header {
-        margin-bottom: 2rem;
-    }
-    
-    .page-header h1 {
-        color: #495057;
-        margin-bottom: 0.5rem;
-    }
-    
-    .page-header p {
-        color: #6c757d;
-    }
-    
-    .form-section {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        padding: 2rem;
-        margin-bottom: 2rem;
-    }
-    
-    .form-section h3 {
-        margin: 0 0 1.5rem 0;
-        color: #495057;
-        font-size: 1.3rem;
-        border-bottom: 2px solid #e9ecef;
-        padding-bottom: 0.8rem;
-    }
-    
-    .form-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1.5rem;
-    }
-    
-    .form-group {
-        margin-bottom: 1.5rem;
-    }
-    
-    .form-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 600;
-        color: #495057;
-        font-size: 0.9rem;
-    }
-    
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-        width: 100%;
-        padding: 0.75rem;
-        border: 2px solid #e9ecef;
-        border-radius: 8px;
-        font-size: 0.9rem;
-        transition: border-color 0.3s, box-shadow 0.3s;
-        box-sizing: border-box;
-    }
-    
-    .form-group input:focus,
-    .form-group select:focus,
-    .form-group textarea:focus {
-        outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
-    }
-    
-    .form-group .help-text {
-        font-size: 0.8rem;
-        color: #6c757d;
-        margin-top: 0.5rem;
-    }
-    
-    .preset-buttons {
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-        margin-bottom: 1.5rem;
-    }
-    
-    .preset-btn {
-        background: #f8f9fa;
-        border: 2px solid #e9ecef;
-        color: #495057;
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 0.8rem;
-        transition: all 0.3s;
-    }
-    
-    .preset-btn:hover {
-        background: #e9ecef;
-        border-color: #adb5bd;
-    }
-    
-    .preset-btn.active {
-        background: #667eea;
-        border-color: #667eea;
-        color: white;
-    }
-    
-    .logs-section {
-        background: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 8px;
-        border: 1px solid #e9ecef;
-    }
-    
-    .log-item {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        margin-bottom: 0.75rem;
-        padding: 0.75rem;
-        background: white;
-        border-radius: 6px;
-        border: 1px solid #e9ecef;
-    }
-    
-    .log-item input {
-        flex: 1;
-        margin: 0;
-        padding: 0.5rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 0.9rem;
-    }
-    
-    .log-item button {
-        background: #dc3545;
-        color: white;
-        border: none;
-        padding: 0.4rem 0.8rem;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 0.8rem;
-        transition: background 0.3s;
-    }
-    
-    .log-item button:hover {
-        background: #c82333;
-    }
-    
-    .add-log-btn {
-        background: #28a745;
-        color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 0.9rem;
-        margin-top: 0.75rem;
-        transition: background 0.3s;
-    }
-    
-    .add-log-btn:hover {
-        background: #218838;
-    }
-    
-    .submit-btn {
-        background: #667eea;
-        color: white;
-        border: none;
-        padding: 1rem 2rem;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 1rem;
-        font-weight: 600;
-        width: 100%;
-        margin-top: 1.5rem;
-        transition: background 0.3s;
-    }
-    
-    .submit-btn:hover {
-        background: #5a6fd8;
-    }
-    
-    .submit-btn:disabled {
-        background: #6c757d;
-        cursor: not-allowed;
-    }
-    
-    .existing-servers {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        padding: 2rem;
-    }
-    
-    .existing-servers h3 {
-        color: #495057;
-        margin-bottom: 1.5rem;
-        font-size: 1.3rem;
-    }
-    
-    .server-card {
-        background: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 8px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-    }
-    
-    .server-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-    }
-    
-    .server-name {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: #495057;
-    }
-    
-    .server-actions {
-        display: flex;
-        gap: 0.5rem;
-    }
-    
-    .edit-btn,
-    .delete-btn {
-        padding: 0.4rem 0.8rem;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 0.8rem;
-        border: none;
-        transition: background 0.3s;
-    }
-    
-    .edit-btn {
-        background: #17a2b8;
-        color: white;
-    }
-    
-    .edit-btn:hover {
-        background: #138496;
-    }
-    
-    .delete-btn {
-        background: #dc3545;
-        color: white;
-    }
-    
-    .delete-btn:hover {
-        background: #c82333;
-    }
-    
-    .server-details {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        font-size: 0.9rem;
-    }
-    
-    .detail-item {
-        background: white;
-        padding: 0.75rem;
-        border-radius: 4px;
-        border: 1px solid #e9ecef;
-    }
-    
-    .detail-label {
-        font-weight: 600;
-        color: #6c757d;
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        margin-bottom: 0.5rem;
-    }
-    
-    .detail-value {
-        color: #495057;
-    }
-    
-    .logs-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.25rem;
-    }
-    
-    .log-tag {
-        background: #e9ecef;
-        color: #495057;
-        padding: 0.2rem 0.5rem;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-family: monospace;
-    }
-    
-    .no-servers {
-        text-align: center;
-        color: #6c757d;
-        font-style: italic;
-        padding: 2rem;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="page-header">
-    <h1>🖥️ Server Management</h1>
-    <p>Add and configure monitoring servers</p>
+    <h1>Server Management</h1>
+    <p class="text-muted">Configure and manage monitoring servers</p>
 </div>
 
-<div class="form-section">
-    <h3>📋 Add New Server</h3>
-    <form id="serverForm">
-        <div class="form-grid">
-            <div class="form-group">
-                <label for="name">Server Name *</label>
-                <input type="text" id="name" name="name" required placeholder="e.g., web-server, db-server">
-                <div class="help-text">Unique identifier for this server</div>
-            </div>
-            <div class="form-group">
-                <label for="host">Host/IP Address *</label>
-                <input type="text" id="host" name="host" required placeholder="192.168.1.100 or server.example.com">
-                <div class="help-text">Server IP address or hostname</div>
-            </div>
-            <div class="form-group">
-                <label for="port">SSH Port</label>
-                <input type="number" id="port" name="port" value="22" min="1" max="65535">
-                <div class="help-text">SSH port (default: 22)</div>
-            </div>
-            <div class="form-group">
-                <label for="username">Username *</label>
-                <input type="text" id="username" name="username" required placeholder="root, admin, or service user">
-                <div class="help-text">SSH username for authentication</div>
-            </div>
-        </div>
-        
-        <div class="form-grid">
-            <div class="form-group">
-                <label for="authType">Authentication Method</label>
-                <select id="authType" name="authType" onchange="toggleAuthFields()">
-                    <option value="password">Password</option>
-                    <option value="key">SSH Private Key</option>
-                </select>
-                <div class="help-text">Choose between password or SSH key authentication</div>
-            </div>
-            <div class="form-group" id="passwordGroup">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter SSH password">
-                <div class="help-text">SSH password for the user</div>
-            </div>
-            <div class="form-group" id="keyGroup" style="display:none;">
-                <label for="privateKeyPath">Private Key Path</label>
-                <input type="text" id="privateKeyPath" name="privateKeyPath" placeholder="~/.ssh/id_rsa">
-                <div class="help-text">Path to SSH private key file</div>
-            </div>
-        </div>
-        
-        <div class="form-section">
-            <h3>📊 Log Sources</h3>
-            <div class="preset-buttons">
-                <button type="button" class="preset-btn active" onclick="applyPreset('debian')">Debian/Ubuntu</button>
-                <button type="button" class="preset-btn" onclick="applyPreset('rhel')">RHEL/CentOS</button>
-                <button type="button" class="preset-btn" onclick="applyPreset('custom')">Custom</button>
-            </div>
-            <div class="logs-section">
-                <div id="logsContainer">
-                    <div class="log-item">
-                        <input type="text" name="logs[]" value="journal:ssh" placeholder="Log source (e.g., journal:ssh, /var/log/auth.log)">
-                        <button type="button" onclick="removeLog(this)">&times;</button>
-                    </div>
-                    <div class="log-item">
-                        <input type="text" name="logs[]" value="/var/log/fail2ban.log" placeholder="Log source">
-                        <button type="button" onclick="removeLog(this)">&times;</button>
+<div class="card">
+    <div class="card-header">
+        <h3>Add New Server</h3>
+    </div>
+    <div class="card-body">
+        <form id="addServerForm">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="serverName" class="form-label">Server Name</label>
+                        <input type="text" id="serverName" name="name" class="form-control" required>
                     </div>
                 </div>
-                <button type="button" class="add-log-btn" onclick="addLog()">+ Add Log Source</button>
-                <div class="help-text" style="margin-top: 1rem;">
-                    <strong>Common log sources:</strong><br>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="serverHost" class="form-label">Host/IP Address</label>
+                        <input type="text" id="serverHost" name="host" class="form-control" required>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="serverPort" class="form-label">SSH Port</label>
+                        <input type="number" id="serverPort" name="port" class="form-control" value="22" min="1" max="65535">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="serverUsername" class="form-label">Username</label>
+                        <input type="text" id="serverUsername" name="username" class="form-control" required>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="authMethod" class="form-label">Authentication Method</label>
+                        <select id="authMethod" class="form-select" onchange="toggleAuthFields()">
+                            <option value="password">Password</option>
+                            <option value="key">SSH Key</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group" id="passwordGroup">
+                <label for="serverPassword" class="form-label">Password</label>
+                <input type="password" id="serverPassword" name="password" class="form-control">
+            </div>
+            
+            <div class="form-group d-none" id="keyGroup">
+                <label for="serverKeyPath" class="form-label">Private Key Path</label>
+                <input type="text" id="serverKeyPath" name="private_key_path" class="form-control" placeholder="/path/to/private/key">
+            </div>
+            
+            <div class="form-group">
+                <label for="serverLogs" class="form-label">Log Sources</label>
+                <textarea id="serverLogs" name="logs" class="form-control" rows="3" placeholder="Enter log sources, one per line&#10;Example:&#10;journal:ssh&#10;/var/log/fail2ban.log"></textarea>
+                <div class="help-text">
+                    <strong>Supported log sources:</strong><br>
                     • <code>journal:ssh</code> - Systemd SSH service logs (Debian/Ubuntu)<br>
                     • <code>journal:sshd</code> - Systemd SSH service logs (RHEL/CentOS)<br>
                     • <code>/var/log/auth.log</code> - Authentication logs (Debian/Ubuntu)<br>
                     • <code>/var/log/secure</code> - Authentication logs (RHEL/CentOS)<br>
-                    • <code>/var/log/fail2ban.log</code> - Fail2Ban logs<br>
-                    • <code>ssh:auto</code> - Auto-detect best SSH log source
+                    • <code>/var/log/fail2ban.log</code> - Fail2Ban logs (All Linux)<br>
+                    • <code>ssh:auto</code> - Auto-detect best source
                 </div>
             </div>
-        </div>
-        
-        <button type="submit" class="submit-btn" id="submitBtn">🚀 Add Server</button>
-    </form>
+            
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Add Server</button>
+                <button type="reset" class="btn btn-secondary">Reset Form</button>
+            </div>
+        </form>
+    </div>
 </div>
 
-<div class="existing-servers">
-    <h3>📋 Existing Servers</h3>
-    <div id="serversList">Loading...</div>
+<div class="card">
+    <div class="card-header">
+        <h3>Log Sources</h3>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Source</th>
+                        <th>Description</th>
+                        <th>OS Support</th>
+                        <th>Example</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>journal:ssh</code></td>
+                        <td>Systemd SSH service logs</td>
+                        <td>Debian/Ubuntu</td>
+                        <td>SSH login attempts, key-based auth</td>
+                    </tr>
+                    <tr>
+                        <td><code>journal:sshd</code></td>
+                        <td>Systemd SSH service logs</td>
+                        <td>RHEL/CentOS</td>
+                        <td>SSH login attempts, key-based auth</td>
+                    </tr>
+                    <tr>
+                        <td><code>/var/log/auth.log</code></td>
+                        <td>Authentication logs</td>
+                        <td>Debian/Ubuntu</td>
+                        <td>PAM auth, sudo usage, user changes</td>
+                    </tr>
+                    <tr>
+                        <td><code>/var/log/secure</code></td>
+                        <td>Authentication logs</td>
+                        <td>RHEL/CentOS</td>
+                        <td>PAM auth, sudo usage, user changes</td>
+                    </tr>
+                    <tr>
+                        <td><code>/var/log/fail2ban.log</code></td>
+                        <td>Fail2Ban logs</td>
+                        <td>All Linux</td>
+                        <td>IP bans, failed login attempts</td>
+                    </tr>
+                    <tr>
+                        <td><code>ssh:auto</code></td>
+                        <td>Auto-detect best source</td>
+                        <td>All Linux</td>
+                        <td>Automatically selects optimal log source</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3>Configured Servers</h3>
+        <button id="refreshServersBtn" class="btn btn-primary">Refresh</button>
+    </div>
+    <div class="card-body">
+        <div id="serversList">
+            <div class="text-center text-muted">Loading servers...</div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
-{% block extra_js %}
+{% block scripts %}
 <script>
-let currentPreset = 'debian';
-let editingServer = null;
+let servers = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadServers();
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    document.getElementById('addServerForm').addEventListener('submit', addServer);
+    document.getElementById('refreshServersBtn').addEventListener('click', loadServers);
+}
 
 function toggleAuthFields() {
-    const authType = document.getElementById('authType').value;
+    const authMethod = document.getElementById('authMethod').value;
     const passwordGroup = document.getElementById('passwordGroup');
     const keyGroup = document.getElementById('keyGroup');
     
-    if (authType === 'password') {
-        passwordGroup.style.display = 'block';
-        keyGroup.style.display = 'none';
-        document.getElementById('password').required = true;
-        document.getElementById('privateKeyPath').required = false;
+    if (authMethod === 'password') {
+        passwordGroup.classList.remove('d-none');
+        keyGroup.classList.add('d-none');
+        document.getElementById('serverPassword').required = true;
+        document.getElementById('serverKeyPath').required = false;
     } else {
-        passwordGroup.style.display = 'none';
-        keyGroup.style.display = 'block';
-        document.getElementById('password').required = false;
-        document.getElementById('privateKeyPath').required = true;
+        passwordGroup.classList.add('d-none');
+        keyGroup.classList.remove('d-none');
+        document.getElementById('serverPassword').required = false;
+        document.getElementById('serverKeyPath').required = true;
     }
 }
 
-function applyPreset(preset) {
-    currentPreset = preset;
-    document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
+async function addServer(event) {
+    event.preventDefault();
     
-    const logsContainer = document.getElementById('logsContainer');
-    logsContainer.innerHTML = '';
-    
-    let logs = [];
-    if (preset === 'debian') {
-        logs = ['journal:ssh', '/var/log/fail2ban.log', '/var/log/auth.log'];
-    } else if (preset === 'rhel') {
-        logs = ['journal:sshd', '/var/log/fail2ban.log', '/var/log/secure'];
-    } else if (preset === 'custom') {
-        logs = ['ssh:auto'];
-    }
-    
-    logs.forEach(log => addLog(log));
-}
-
-function addLog(value = '') {
-    const container = document.getElementById('logsContainer');
-    const logItem = document.createElement('div');
-    logItem.className = 'log-item';
-    logItem.innerHTML = `
-        <input type="text" name="logs[]" value="${value}" placeholder="Log source">
-        <button type="button" onclick="removeLog(this)">&times;</button>
-    `;
-    container.appendChild(logItem);
-}
-
-function removeLog(button) {
-    const container = document.getElementById('logsContainer');
-    if (container.children.length > 1) {
-        button.parentElement.remove();
-    }
-}
-
-function loadServers() {
-    fetch('/api/servers')
-        .then(response => response.json())
-        .then(servers => {
-            const container = document.getElementById('serversList');
-            if (servers.length === 0) {
-                container.innerHTML = '<div class="no-servers">No servers configured yet</div>';
-                return;
-            }
-            
-            container.innerHTML = servers.map(server => `
-                <div class="server-card">
-                    <div class="server-header">
-                        <div class="server-name">${server.name}</div>
-                        <div class="server-actions">
-                            <button class="edit-btn" onclick='editServer(${JSON.stringify(server).replace(/\"/g, '&quot;')})'>✏️ Edit</button>
-                            <button class="delete-btn" onclick="deleteServer('${server.name}')">🗑️ Delete</button>
-                        </div>
-                    </div>
-                    <div class="server-details">
-                        <div class="detail-item">
-                            <div class="detail-label">Host</div>
-                            <div class="detail-value">${server.host}:${server.port}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Username</div>
-                            <div class="detail-value">${server.username}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Authentication</div>
-                            <div class="detail-value">${server.has_password ? 'Password' : 'SSH Key'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Log Sources</div>
-                            <div class="detail-value">
-                                <div class="logs-list">
-                                    ${server.logs.map(log => `<span class="log-tag">${log}</span>`).join('')}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-        })
-        .catch(error => {
-            console.error('Failed to load servers:', error);
-            document.getElementById('serversList').innerHTML = '<div class="no-servers" style="color:#dc3545;">Failed to load servers</div>';
-        });
-}
-
-function editServer(server) {
-    editingServer = server;
-    document.getElementById('name').value = server.name;
-    document.getElementById('host').value = server.host;
-    document.getElementById('port').value = server.port;
-    document.getElementById('username').value = server.username;
-    
-    if (server.has_password) {
-        document.getElementById('authType').value = 'password';
-        document.getElementById('password').value = '';
-    } else {
-        document.getElementById('authType').value = 'key';
-        document.getElementById('privateKeyPath').value = server.private_key_path || '';
-    }
-    toggleAuthFields();
-    
-    // Clear and populate logs
-    const logsContainer = document.getElementById('logsContainer');
-    logsContainer.innerHTML = '';
-    server.logs.forEach(log => addLog(log));
-    
-    document.getElementById('submitBtn').textContent = '💾 Update Server';
-    document.getElementById('submitBtn').style.background = '#28a745';
-}
-
-function deleteServer(name) {
-    if (!confirm(`Are you sure you want to delete server '${name}'?`)) return;
-    
-    fetch(`/api/servers/${name}`, { method: 'DELETE' })
-        .then(response => {
-            if (response.ok) {
-                loadServers();
-                alert('Server deleted successfully');
-            } else {
-                alert('Failed to delete server');
-            }
-        })
-        .catch(error => {
-            console.error('Failed to delete server:', error);
-            alert('Failed to delete server');
-        });
-}
-
-function resetForm() {
-    editingServer = null;
-    document.getElementById('serverForm').reset();
-    document.getElementById('submitBtn').textContent = '🚀 Add Server';
-    document.getElementById('submitBtn').style.background = '#667eea';
-    applyPreset('debian');
-    toggleAuthFields();
-}
-
-document.getElementById('serverForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const formData = new FormData(e.target);
-    const logs = Array.from(formData.getAll('logs[]')).filter(log => log.trim());
-    
-    if (logs.length === 0) {
-        alert('Please add at least one log source');
-        return;
-    }
-    
-    const authType = document.getElementById('authType').value;
-    const body = {
+    const formData = new FormData(event.target);
+    const serverData = {
         name: formData.get('name'),
         host: formData.get('host'),
-        port: Number(formData.get('port')),
+        port: parseInt(formData.get('port')) || 22,
         username: formData.get('username'),
-        password: authType === 'password' ? formData.get('password') : null,
-        private_key_path: authType === 'key' ? formData.get('privateKeyPath') : null,
-        logs: logs
+        logs: formData.get('logs').split('\n').filter(line => line.trim())
     };
+    
+    // Add authentication data
+    const authMethod = document.getElementById('authMethod').value;
+    if (authMethod === 'password') {
+        serverData.password = formData.get('password');
+    } else {
+        serverData.private_key_path = formData.get('private_key_path');
+    }
     
     try {
         const response = await fetch('/api/servers', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(serverData)
         });
         
         if (response.ok) {
-            alert(editingServer ? 'Server updated successfully!' : 'Server added successfully!');
-            resetForm();
+            alert('Server added successfully!');
+            event.target.reset();
             loadServers();
         } else {
             const error = await response.text();
-            alert('Error: ' + error);
+            throw new Error(error || 'Failed to add server');
         }
     } catch (error) {
-        console.error('Failed to save server:', error);
-        alert('Failed to save server');
+        console.error('Error adding server:', error);
+        alert('Failed to add server: ' + error.message);
     }
-});
+}
 
-// Initialize form
-toggleAuthFields();
-loadServers();
+async function loadServers() {
+    try {
+        const response = await fetch('/api/servers');
+        if (response.ok) {
+            servers = await response.json();
+            displayServers();
+        } else {
+            throw new Error('Failed to load servers');
+        }
+    } catch (error) {
+        console.error('Error loading servers:', error);
+        document.getElementById('serversList').innerHTML = '<div class="text-center text-danger">Failed to load servers</div>';
+    }
+}
+
+function displayServers() {
+    const container = document.getElementById('serversList');
+    
+    if (servers.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted">No servers configured</div>';
+        return;
+    }
+    
+    container.innerHTML = servers.map(server => `
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h5 class="card-title">${escapeHtml(server.name)}</h5>
+                        <p class="card-text">
+                            <strong>Host:</strong> ${escapeHtml(server.host)}:${server.port}<br>
+                            <strong>Username:</strong> ${escapeHtml(server.username)}<br>
+                            <strong>Log Sources:</strong> ${server.logs.length > 0 ? server.logs.map(log => `<code>${escapeHtml(log)}</code>`).join(', ') : 'None'}
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button class="btn btn-danger btn-sm" onclick="deleteServer('${server.name}')">Delete</button>
+                        <button class="btn btn-info btn-sm" onclick="testConnection('${server.name}')">Test Connection</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function deleteServer(serverName) {
+    if (!confirm(`Are you sure you want to delete server '${serverName}'?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/servers/${encodeURIComponent(serverName)}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            alert('Server deleted successfully!');
+            loadServers();
+        } else {
+            throw new Error('Failed to delete server');
+        }
+    } catch (error) {
+        console.error('Error deleting server:', error);
+        alert('Failed to delete server: ' + error.message);
+    }
+}
+
+async function testConnection(serverName) {
+    const server = servers.find(s => s.name === serverName);
+    if (!server) {
+        alert('Server not found');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/servers/test-connection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(server)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                alert('Connection successful!');
+            } else {
+                alert('Connection failed: ' + result.message);
+            }
+        } else {
+            throw new Error('Failed to test connection');
+        }
+    } catch (error) {
+        console.error('Error testing connection:', error);
+        alert('Failed to test connection: ' + error.message);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 </script>
 {% endblock %}

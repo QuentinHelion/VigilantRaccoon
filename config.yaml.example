@@ -1,34 +1,52 @@
 # VigilantRaccoon Configuration Example
-# Copy this file to config.yaml and edit with your settings
+# Copy this file to config.yaml and modify with your settings
 
 servers:
+  - name: localhost
+    host: localhost
+    port: 22
+    username: your_username
+    # Choose one authentication method
+    # password: your_password
+    private_key_path: /path/to/your/private_key
+    logs:
+      - journal:ssh            # Debian/Ubuntu
+      - /var/log/fail2ban.log
+
   - name: web-server
     host: 192.168.1.100
     port: 22
     username: admin
     # Choose one authentication method
-    password: your_password_here
-    #private_key_path: ~/.ssh/id_rsa
+    # password: your_password
+    private_key_path: /path/to/your/private_key
     logs:
       - journal:ssh            # Debian/Ubuntu
-      - journal:sshd           # RHEL/CentOS
       - /var/log/fail2ban.log
 
   - name: database-server
     host: 192.168.1.101
     port: 22
     username: admin
-    password: your_password_here
+    # Choose one authentication method
+    # password: your_password
+    private_key_path: /path/to/your/private_key
     logs:
       - journal:ssh
       - /var/log/fail2ban.log
 
-# Log collection interval (in seconds)
-poll_interval_seconds: 60
+# Collection settings
+collection:
+  poll_interval_seconds: 60   # How often to check for new logs
+  tail_lines: 100             # Number of lines to read from log files
+  ignore_source_ips:          # IP addresses to ignore (e.g., monitoring servers)
+    - 127.0.0.1
+    - ::1
+    - 192.168.1.50
 
 # Email notification settings
 email:
-  enabled: true
+  enabled: false              # Set to true to enable email notifications
   smtp_host: smtp.gmail.com
   smtp_port: 587
   use_tls: true
@@ -39,26 +57,23 @@ email:
     - admin@yourdomain.com
     - security@yourdomain.com
 
-# Storage configuration
+# Storage settings
 storage:
   sqlite_path: ./data/vigilant_raccoon.db
-
-# Log collection settings
-collection:
-  tail_lines: 2000
-  ignore_source_ips: 
-    - "127.0.0.1"
-    - "192.168.1.50"  # Monitoring server IP
-
-# Web interface settings
-web:
-  host: "0.0.0.0"  # Use 0.0.0.0 for Docker
-  port: 8000
 
 # Logging configuration
 logging:
   level: INFO           # DEBUG, INFO, WARNING, ERROR
   file_path: ./logs/app.log
+  # Daily rotation settings
+  daily_rotation: true  # Enable daily log rotation
+  retention_days: 30    # Number of days to keep log files (default: 30)
+  # Legacy size-based rotation settings (used when daily_rotation is false)
   max_bytes: 1000000    # 1 MB
   backup_count: 3
   console: true         # Set to false in production
+
+# Web interface settings
+web:
+  host: "0.0.0.0"            # Bind to all interfaces
+  port: 8000                  # Web interface port

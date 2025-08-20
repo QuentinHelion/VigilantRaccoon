@@ -1,359 +1,376 @@
 from __future__ import annotations
 
 import smtplib
-from email.mime.multipart import MIMEMultipart
+import ssl
 from email.mime.text import MIMEText
-from typing import Iterable
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+from typing import List, Optional
+from datetime import datetime
+import logging
 
-from config import EmailConfig
 from domain.entities import Alert
+from config import EmailConfig
 
+log = logging.getLogger("EmailNotifier")
 
 class EmailNotifier:
-    def __init__(self, cfg: EmailConfig) -> None:
-        self._cfg = cfg
-
-    def send_alerts(self, alerts: Iterable[Alert]) -> None:
-        alerts_list = list(alerts)
-        if not self._cfg.enabled or not alerts_list or not self._cfg.to_addrs:
-            return
-
-        subject = f"🔒 VigilantRaccoon: {len(alerts_list)} new security alert(s)"
+    """Email notification system for security alerts"""
+    
+    def __init__(self, config: EmailConfig):
+        self.config = config
+        self.smtp_server = config.smtp_host
+        self.smtp_port = config.smtp_port
+        self.username = config.username
+        self.password = config.password
+        self.from_addr = config.from_addr
+        self.to_addrs = config.to_addrs
+        self.use_tls = config.use_tls
         
-        # Create HTML email
-        html_body = self._create_html_alerts_body(alerts_list)
-        text_body = self._create_text_alerts_body(alerts_list)
-        
-        self._send_email(subject, html_body, text_body)
-
-    def send_critical_alert(self, alerts: Iterable[Alert]) -> None:
-        """Send immediate notification for critical security events."""
-        alerts_list = list(alerts)
-        if not self._cfg.enabled or not alerts_list or not self._cfg.to_addrs:
-            return
-
-        subject = f"🚨 URGENT: {len(alerts_list)} critical security event(s) detected!"
-        
-        # Create HTML email
-        html_body = self._create_html_critical_body(alerts_list)
-        text_body = self._create_text_critical_body(alerts_list)
-        
-        self._send_email(subject, html_body, text_body)
-
-    def _create_html_alerts_body(self, alerts: list) -> str:
-        """Create HTML body for regular alerts."""
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <style>
-                body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }}
-                .container {{ max-width: 800px; margin: 20px auto; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }}
-                .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }}
-                .header h1 {{ margin: 0; font-size: 28px; font-weight: 300; }}
-                .header .subtitle {{ margin: 10px 0 0 0; opacity: 0.9; font-size: 16px; }}
-                .summary {{ background: #f8f9fa; padding: 25px; border-bottom: 1px solid #e9ecef; }}
-                .summary-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-top: 20px; }}
-                .summary-item {{ text-align: center; padding: 15px; background: white; border-radius: 8px; border: 1px solid #e9ecef; }}
-                .summary-number {{ font-size: 24px; font-weight: bold; color: #495057; }}
-                .summary-label {{ font-size: 12px; color: #6c757d; text-transform: uppercase; margin-top: 5px; }}
-                .alerts-section {{ padding: 25px; }}
-                .alert-item {{ background: #f8f9fa; margin: 15px 0; padding: 20px; border-radius: 8px; border-left: 4px solid #dee2e6; }}
-                .alert-item.high {{ border-left-color: #dc3545; background: #fff5f5; }}
-                .alert-item.medium {{ border-left-color: #fd7e14; background: #fff8f0; }}
-                .alert-item.info {{ border-left-color: #17a2b8; background: #f0f9ff; }}
-                .alert-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }}
-                .alert-level {{ font-weight: bold; text-transform: uppercase; font-size: 12px; padding: 4px 8px; border-radius: 4px; }}
-                .alert-level.high {{ background: #dc3545; color: white; }}
-                .alert-level.medium {{ background: #fd7e14; color: white; }}
-                .alert-level.info {{ background: #17a2b8; color: white; }}
-                .alert-timestamp {{ color: #6c757d; font-size: 12px; }}
-                .alert-server {{ font-weight: bold; color: #495057; margin: 5px 0; }}
-                .alert-ip {{ background: #e9ecef; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; }}
-                .alert-message {{ margin: 10px 0; color: #495057; line-height: 1.5; }}
-                .footer {{ background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 12px; border-top: 1px solid #e9ecef; }}
-                .footer a {{ color: #667eea; text-decoration: none; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1>🔒 VigilantRaccoon</h1>
-                    <div class="subtitle">Security Monitoring System</div>
-                </div>
-                
-                <div class="summary">
-                    <h2 style="margin: 0 0 15px 0; color: #495057; font-size: 20px;">📊 Alert Summary</h2>
-                    <div class="summary-grid">
-                        <div class="summary-item">
-                            <div class="summary-number">{len(alerts)}</div>
-                            <div class="summary-label">Total Alerts</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-number">{len(set(a.server_name for a in alerts))}</div>
-                            <div class="summary-label">Servers Affected</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-number">{len([a for a in alerts if a.level == 'high'])}</div>
-                            <div class="summary-label">High Priority</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-number">{len([a for a in alerts if a.level == 'medium'])}</div>
-                            <div class="summary-label">Medium Priority</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="alerts-section">
-                    <h2 style="margin: 0 0 20px 0; color: #495057; font-size: 20px;">🚨 Security Alerts</h2>
-        """
-        
-        for alert in alerts:
-            level_class = f"alert-item {alert.level}"
-            level_badge = f"<span class='alert-level {alert.level}'>{alert.level.upper()}</span>"
-            timestamp = alert.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")
-            ip_display = f"<span class='alert-ip'>{alert.ip_address}</span>" if alert.ip_address else "N/A"
+    def send_alert_notification(self, alerts_list: List[Alert]) -> bool:
+        """Send email notification for new alerts"""
+        if not self.config.enabled or not alerts_list:
+            return False
             
-            html += f"""
-                    <div class="{level_class}">
-                        <div class="alert-header">
-                            {level_badge}
-                            <span class="alert-timestamp">{timestamp}</span>
-                        </div>
-                        <div class="alert-server">🖥️ {alert.server_name} - {alert.log_source}</div>
-                        <div style="margin: 5px 0;">
-                            <strong>IP:</strong> {ip_display}
-                            {f'<br><strong>Rule:</strong> <span class="alert-ip">{alert.rule}</span>' if alert.rule else ''}
-                        </div>
-                        <div class="alert-message">{alert.message}</div>
-                    </div>
-            """
-        
-        html += """
-                </div>
-                
-                <div class="footer">
-                    <p>This is an automated alert from <strong>VigilantRaccoon</strong></p>
-                    <p>Please review these security events and take appropriate action</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-        return html
-
-    def _create_html_critical_body(self, alerts: list) -> str:
-        """Create HTML body for critical alerts."""
+        try:
+            # Create message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = f"VigilantRaccoon: {len(alerts_list)} new security alert(s)"
+            msg['From'] = self.from_addr
+            msg['To'] = ', '.join(self.to_addrs)
+            
+            # Create HTML content
+            html_content = self._create_html_content(alerts_list)
+            html_part = MIMEText(html_content, 'html')
+            msg.attach(html_part)
+            
+            # Send email
+            return self._send_email(msg)
+            
+        except Exception as e:
+            log.error("Failed to send alert notification: %s", e)
+            return False
+    
+    def send_critical_alert(self, alerts: List[Alert]) -> bool:
+        """Send immediate notification for critical alerts"""
+        if not self.config.enabled or not alerts:
+            return False
+            
+        try:
+            # Create urgent message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = f"URGENT: {len(alerts)} Critical Security Alert(s) - VigilantRaccoon"
+            msg['From'] = self.from_addr
+            msg['To'] = ', '.join(self.to_addrs)
+            msg['Priority'] = 'high'
+            msg['X-Priority'] = '1'
+            msg['X-MSMail-Priority'] = 'High'
+            
+            # Create HTML content
+            html_content = self._create_critical_html_content(alerts)
+            html_part = MIMEText(html_content, 'html')
+            msg.attach(html_part)
+            
+            # Send email
+            return self._send_email(msg)
+            
+        except Exception as e:
+            log.error("Failed to send critical alert: %s", e)
+            return False
+    
+    def _create_html_content(self, alerts: List[Alert]) -> str:
+        """Create HTML content for regular alerts"""
         # Group alerts by server
         alerts_by_server = {}
-        for a in alerts:
-            if a.server_name not in alerts_by_server:
-                alerts_by_server[a.server_name] = []
-            alerts_by_server[a.server_name].append(a)
-
+        for alert in alerts:
+            if alert.server_name not in alerts_by_server:
+                alerts_by_server[alert.server_name] = []
+            alerts_by_server[alert.server_name].append(alert)
+        
         html = f"""
         <!DOCTYPE html>
         <html>
         <head>
-            <meta charset="utf-8">
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Security Alerts</title>
             <style>
-                body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }}
-                .container {{ max-width: 900px; margin: 20px auto; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }}
-                .header {{ background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 30px; text-align: center; }}
-                .header h1 {{ margin: 0; font-size: 32px; font-weight: 300; }}
-                .header .subtitle {{ margin: 10px 0 0 0; opacity: 0.9; font-size: 18px; }}
-                .warning {{ background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 20px; margin: 20px; border-radius: 8px; text-align: center; font-size: 16px; }}
-                .summary {{ background: #f8f9fa; padding: 25px; border-bottom: 1px solid #e9ecef; }}
-                .summary-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-top: 20px; }}
-                .summary-item {{ text-align: center; padding: 15px; background: white; border-radius: 8px; border: 1px solid #e9ecef; }}
-                .summary-number {{ font-size: 24px; font-weight: bold; color: #dc3545; }}
-                .summary-label {{ font-size: 12px; color: #6c757d; text-transform: uppercase; margin-top: 5px; }}
-                .server-section {{ margin: 20px; }}
-                .server-header {{ background: #dc3545; color: white; padding: 15px 20px; border-radius: 8px 8px 0 0; font-weight: bold; font-size: 18px; }}
-                .server-alerts {{ background: #fff5f5; border: 1px solid #fecaca; border-top: none; border-radius: 0 0 8px 8px; padding: 20px; }}
-                .alert-item {{ background: white; margin: 10px 0; padding: 15px; border-radius: 6px; border-left: 4px solid #dc3545; }}
-                .alert-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }}
-                .alert-level {{ font-weight: bold; text-transform: uppercase; font-size: 12px; padding: 4px 8px; border-radius: 4px; background: #dc3545; color: white; }}
-                .alert-timestamp {{ color: #6c757d; font-size: 12px; }}
-                .alert-ip {{ background: #e9ecef; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; }}
-                .alert-message {{ margin: 10px 0; color: #495057; line-height: 1.5; }}
-                .footer {{ background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 12px; border-top: 1px solid #e9ecef; }}
-                .footer a {{ color: #dc3545; text-decoration: none; }}
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
+                .container {{ max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .header {{ text-align: center; margin-bottom: 30px; }}
+                .header h1 {{ color: #2c3e50; margin: 0; font-size: 28px; }}
+                .header p {{ color: #7f8c8d; margin: 10px 0 0 0; }}
+                .summary {{ background: #ecf0f1; padding: 20px; border-radius: 8px; margin-bottom: 30px; }}
+                .summary h2 {{ margin: 0 0 15px 0; color: #2c3e50; font-size: 20px; }}
+                .summary p {{ margin: 0; color: #34495e; }}
+                .server-section {{ margin-bottom: 30px; }}
+                .server-header {{ background: #3498db; color: white; padding: 15px; border-radius: 8px 8px 0 0; font-weight: bold; }}
+                .alert-item {{ border: 1px solid #bdc3c7; border-top: none; padding: 15px; }}
+                .alert-item:last-child {{ border-radius: 0 0 8px 8px; }}
+                .alert-rule {{ font-weight: bold; color: #e74c3c; margin-bottom: 5px; }}
+                .alert-message {{ color: #2c3e50; margin-bottom: 5px; }}
+                .alert-server {{ color: #7f8c8d; font-size: 12px; }}
+                .alert-time {{ color: #95a5a6; font-size: 11px; }}
+                .footer {{ text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ecf0f1; color: #7f8c8d; font-size: 12px; }}
+                .level-high {{ color: #e74c3c; }}
+                .level-medium {{ color: #f39c12; }}
+                .level-info {{ color: #3498db; }}
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>🚨 CRITICAL SECURITY ALERTS</h1>
-                    <div class="subtitle">IMMEDIATE ATTENTION REQUIRED</div>
-                </div>
-                
-                <div class="warning">
-                    ⚠️ <strong>URGENT:</strong> {len(alerts)} critical security event(s) detected requiring immediate investigation!
+                    <h1>VigilantRaccoon</h1>
+                    <p>Security Monitoring System</p>
                 </div>
                 
                 <div class="summary">
-                    <h2 style="margin: 0 0 15px 0; color: #495057; font-size: 20px;">📊 Critical Event Summary</h2>
-                    <div class="summary-grid">
-                        <div class="summary-item">
-                            <div class="summary-number">{len(alerts)}</div>
-                            <div class="summary-label">Critical Events</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-number">{len(alerts_by_server)}</div>
-                            <div class="summary-label">Servers Affected</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-number">{len([a for a in alerts if a.rule == 'sshd_failed'])}</div>
-                            <div class="summary-label">SSH Failures</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-number">{len([a for a in alerts if a.rule == 'fail2ban_ban'])}</div>
-                            <div class="summary-label">Fail2Ban Bans</div>
-                        </div>
-                    </div>
+                    <h2>Alert Summary</h2>
+                    <p><strong>{len(alerts)} new security alert(s)</strong> detected across <strong>{len(alerts_by_server)} server(s)</strong></p>
+                    <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
                 </div>
         """
         
+        # Add alerts by server
         for server_name, server_alerts in alerts_by_server.items():
             html += f"""
                 <div class="server-section">
-                    <div class="server-header">🖥️ SERVER: {server_name}</div>
-                    <div class="server-alerts">
+                    <div class="server-header">SERVER: {server_name}</div>
             """
             
             for alert in server_alerts:
-                timestamp = alert.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")
-                ip_display = f"<span class='alert-ip'>{alert.ip_address}</span>" if alert.ip_address else "N/A"
-                
+                level_class = f"level-{alert.level}"
                 html += f"""
-                        <div class="alert-item">
-                            <div class="alert-header">
-                                <span class="alert-level">{alert.rule.upper()}</span>
-                                <span class="alert-timestamp">{timestamp}</span>
-                            </div>
-                            <div style="margin: 5px 0;">
-                                <strong>Source:</strong> {alert.log_source}<br>
-                                <strong>IP:</strong> {ip_display}
-                            </div>
-                            <div class="alert-message">{alert.message}</div>
-                        </div>
+                    <div class="alert-item">
+                        <div class="alert-rule {level_class}">{alert.rule.upper()}</div>
+                        <div class="alert-message">{alert.message}</div>
+                        <div class="alert-server">SERVER: {alert.server_name} - {alert.log_source}</div>
+                        <div class="alert-time">{alert.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}</div>
+                    </div>
                 """
             
-            html += """
-                    </div>
-                </div>
-            """
+            html += "</div>"
         
         html += """
                 <div class="footer">
-                    <p><strong>🚨 IMMEDIATE ACTION REQUIRED</strong></p>
-                    <p>This is an automated critical alert from <strong>VigilantRaccoon</strong></p>
-                    <p>Please investigate these security events immediately and take appropriate action</p>
+                    <p>This is an automated message from VigilantRaccoon Security Monitoring System</p>
+                    <p>Please do not reply to this email</p>
                 </div>
             </div>
         </body>
         </html>
         """
+        
         return html
-
-    def _create_text_alerts_body(self, alerts: list) -> str:
-        """Create plain text body for regular alerts."""
-        body_lines = [
-            "🔒 VigilantRaccoon - Security Monitoring System",
-            "=" * 60,
-            "",
-            f"Total alerts: {len(alerts)}",
-            f"Servers affected: {len(set(a.server_name for a in alerts))}",
-            "",
-        ]
-        
-        for a in alerts:
-            body_lines.extend([
-                f"[{a.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}] {a.level.upper()} {a.server_name} {a.log_source}",
-                f"IP: {a.ip_address or 'N/A'}",
-                f"Rule: {a.rule or 'N/A'}",
-                f"Message: {a.message}",
-                "-" * 40,
-                ""
-            ])
-        
-        body_lines.extend([
-            "=" * 60,
-            "This is an automated alert from VigilantRaccoon.",
-            "Please review these security events and take appropriate action.",
-        ])
-        
-        return "\n".join(body_lines)
-
-    def _create_text_critical_body(self, alerts: list) -> str:
-        """Create plain text body for critical alerts."""
+    
+    def _create_critical_html_content(self, alerts: List[Alert]) -> str:
+        """Create HTML content for critical alerts"""
+        # Group alerts by server
         alerts_by_server = {}
-        for a in alerts:
-            if a.server_name not in alerts_by_server:
-                alerts_by_server[a.server_name] = []
-            alerts_by_server[a.server_name].append(a)
-
-        body_lines = [
-            "🚨 CRITICAL SECURITY ALERTS - IMMEDIATE ATTENTION REQUIRED 🚨",
-            "=" * 70,
-            "",
-            f"Total critical events: {len(alerts)}",
-            f"Servers affected: {len(alerts_by_server)}",
-            "",
-        ]
-
+        for alert in alerts:
+            if alert.server_name not in alerts_by_server:
+                alerts_by_server[alert.server_name] = []
+            alerts_by_server[alert.server_name].append(alert)
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Critical Security Alert</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
+                .container {{ max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .header {{ text-align: center; margin-bottom: 30px; }}
+                .header h1 {{ color: #e74c3c; margin: 0; font-size: 32px; }}
+                .header p {{ color: #7f8c8d; margin: 10px 0 0 0; }}
+                .urgent {{ background: #e74c3c; color: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; text-align: center; font-size: 18px; }}
+                .summary {{ background: #ecf0f1; padding: 20px; border-radius: 8px; margin-bottom: 30px; }}
+                .summary h2 {{ margin: 0 0 15px 0; color: #2c3e50; font-size: 20px; }}
+                .summary p {{ margin: 0; color: #34495e; }}
+                .server-section {{ margin-bottom: 30px; }}
+                .server-header {{ background: #e74c3c; color: white; padding: 15px; border-radius: 8px 8px 0 0; font-weight: bold; }}
+                .alert-item {{ border: 1px solid #bdc3c7; border-top: none; padding: 15px; }}
+                .alert-item:last-child {{ border-radius: 0 0 8px 8px; }}
+                .alert-rule {{ font-weight: bold; color: #e74c3c; margin-bottom: 5px; }}
+                .alert-message {{ color: #2c3e50; margin-bottom: 5px; }}
+                .alert-server {{ color: #7f8c8d; font-size: 12px; }}
+                .alert-time {{ color: #95a5a6; font-size: 11px; }}
+                .footer {{ text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ecf0f1; color: #7f8c8d; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>CRITICAL SECURITY ALERT</h1>
+                    <p>VigilantRaccoon Security Monitoring System</p>
+                </div>
+                
+                <div class="urgent">
+                    <strong>URGENT:</strong> {len(alerts)} critical security event(s) detected requiring immediate investigation!
+                </div>
+                
+                <div class="summary">
+                    <h2>Critical Event Summary</h2>
+                    <p><strong>{len(alerts)} critical alert(s)</strong> detected across <strong>{len(alerts_by_server)} server(s)</strong></p>
+                    <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+                </div>
+        """
+        
+        # Add alerts by server
         for server_name, server_alerts in alerts_by_server.items():
-            body_lines.extend([
-                f"🔴 SERVER: {server_name}",
-                "-" * 40,
-            ])
+            html += f"""
+                <div class="server-section">
+                    <div class="server-header">SERVER: {server_name}</div>
+            """
             
-            for a in server_alerts:
-                body_lines.extend([
-                    f"  • [{a.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}] {a.rule.upper()}",
-                    f"    Source: {a.log_source}",
-                    f"    IP: {a.ip_address or 'N/A'}",
-                    f"    Message: {a.message}",
-                    ""
-                ])
-
-        body_lines.extend([
-            "=" * 70,
-            "🚨 IMMEDIATE ACTION REQUIRED 🚨",
-            "This is an automated critical alert from VigilantRaccoon.",
-            "Please investigate these security events immediately and take appropriate action.",
-        ])
+            for alert in server_alerts:
+                html += f"""
+                    <div class="alert-item">
+                        <div class="alert-rule">{alert.rule.upper()}</div>
+                        <div class="alert-message">{alert.message}</div>
+                        <div class="alert-server">SERVER: {alert.server_name} - {alert.log_source}</div>
+                        <div class="alert-time">{alert.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}</div>
+                    </div>
+                """
+            
+            html += "</div>"
         
-        return "\n".join(body_lines)
-
-    def _send_email(self, subject: str, html_body: str, text_body: str) -> None:
-        """Send email with both HTML and text versions."""
-        msg = MIMEMultipart('alternative')
-        msg["Subject"] = subject
-        msg["From"] = self._cfg.from_addr or (self._cfg.username or "alerts@example.com")
-        msg["To"] = ", ".join(self._cfg.to_addrs)
-
-        # Attach both HTML and text versions
-        text_part = MIMEText(text_body, 'plain', 'utf-8')
-        html_part = MIMEText(html_body, 'html', 'utf-8')
+        html += """
+                <div class="footer">
+                    <p>This is an automated URGENT message from VigilantRaccoon Security Monitoring System</p>
+                    <p>IMMEDIATE ACTION REQUIRED - Please investigate these critical security events</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
         
-        msg.attach(text_part)
-        msg.attach(html_part)
-
-        if self._cfg.use_tls:
-            server = smtplib.SMTP(self._cfg.smtp_host, self._cfg.smtp_port, timeout=15)
-            server.starttls()
-        else:
-            server = smtplib.SMTP(self._cfg.smtp_host, self._cfg.smtp_port, timeout=15)
-
+        return html
+    
+    def _send_email(self, msg: MIMEMultipart) -> bool:
+        """Send email via SMTP"""
         try:
-            if self._cfg.username and self._cfg.password:
-                server.login(self._cfg.username, self._cfg.password)
-            server.sendmail(msg["From"], self._cfg.to_addrs, msg.as_string())
-        finally:
-            try:
-                server.quit()
-            except Exception:
-                pass
+            if self.use_tls:
+                # Use STARTTLS
+                server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+                server.starttls(context=ssl.create_default_context())
+            else:
+                # Use SSL
+                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, context=ssl.create_default_context())
+            
+            if self.username and self.password:
+                server.login(self.username, self.password)
+            
+            text = msg.as_string()
+            server.sendmail(self.from_addr, self.to_addrs, text)
+            server.quit()
+            
+            log.info("Email sent successfully to %s", self.to_addrs)
+            return True
+            
+        except Exception as e:
+            log.error("Failed to send email: %s", e)
+            return False
+    
+    def send_daily_report(self, alerts: List[Alert]) -> bool:
+        """Send daily summary report"""
+        if not self.config.enabled or not alerts:
+            return False
+            
+        try:
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = f"Daily Security Report - {datetime.now().strftime('%Y-%m-%d')}"
+            msg['From'] = self.from_addr
+            msg['To'] = ', '.join(self.to_addrs)
+            
+            # Create HTML content for daily report
+            html_content = self._create_daily_report_html(alerts)
+            html_part = MIMEText(html_content, 'html')
+            msg.attach(html_part)
+            
+            return self._send_email(msg)
+            
+        except Exception as e:
+            log.error("Failed to send daily report: %s", e)
+            return False
+    
+    def _create_daily_report_html(self, alerts: List[Alert]) -> str:
+        """Create HTML content for daily report"""
+        # Group alerts by server and type
+        alerts_by_server = {}
+        for alert in alerts:
+            if alert.server_name not in alerts_by_server:
+                alerts_by_server[alert.server_name] = {}
+            if alert.rule not in alerts_by_server[alert.server_name]:
+                alerts_by_server[alert.server_name][alert.rule] = []
+            alerts_by_server[alert.server_name][alert.rule].append(alert)
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Daily Security Report</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
+                .container {{ max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .header {{ text-align: center; margin-bottom: 30px; }}
+                .header h1 {{ color: #2c3e50; margin: 0; font-size: 28px; }}
+                .header p {{ color: #7f8c8d; margin: 10px 0 0 0; }}
+                .summary {{ background: #ecf0f1; padding: 20px; border-radius: 8px; margin-bottom: 30px; }}
+                .summary h2 {{ margin: 0 0 15px 0; color: #2c3e50; font-size: 20px; }}
+                .summary p {{ margin: 0; color: #34495e; }}
+                .server-section {{ margin-bottom: 30px; }}
+                .server-header {{ background: #3498db; color: white; padding: 15px; border-radius: 8px 8px 0 0; font-weight: bold; }}
+                .rule-section {{ margin: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px; }}
+                .rule-header {{ font-weight: bold; color: #2c3e50; margin-bottom: 5px; }}
+                .alert-count {{ color: #7f8c8d; font-size: 12px; }}
+                .footer {{ text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ecf0f1; color: #7f8c8d; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Daily Security Report</h1>
+                    <p>VigilantRaccoon Security Monitoring System</p>
+                </div>
+                
+                <div class="summary">
+                    <h2>Daily Summary</h2>
+                    <p><strong>{len(alerts)} total alert(s)</strong> across <strong>{len(alerts_by_server)} server(s)</strong></p>
+                    <p>Report generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+                </div>
+        """
+        
+        # Add alerts by server and rule
+        for server_name, rules in alerts_by_server.items():
+            html += f"""
+                <div class="server-section">
+                    <div class="server-header">SERVER: {server_name}</div>
+            """
+            
+            for rule, rule_alerts in rules.items():
+                html += f"""
+                    <div class="rule-section">
+                        <div class="rule-header">{rule.upper()}</div>
+                        <div class="alert-count">{len(rule_alerts)} alert(s)</div>
+                    </div>
+                """
+            
+            html += "</div>"
+        
+        html += """
+                <div class="footer">
+                    <p>This is an automated daily report from VigilantRaccoon Security Monitoring System</p>
+                    <p>Please do not reply to this email</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return html

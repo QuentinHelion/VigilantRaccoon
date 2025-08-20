@@ -4,159 +4,48 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}VigilantRaccoon{% endblock %}</title>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <style>
-        /* Reset and base styles */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: system-ui, Segoe UI, Arial, sans-serif;
-            background: #f5f5f5;
-            color: #333;
-            line-height: 1.6;
-        }
-        
-        /* Navigation */
-        .navbar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 1rem 2rem;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .nav-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .nav-brand {
-            color: white;
-            text-decoration: none;
-            font-size: 1.5rem;
-            font-weight: 600;
-        }
-        
-        .nav-menu {
-            display: flex;
-            list-style: none;
-            gap: 1rem;
-        }
-        
-        .nav-menu a {
-            color: white;
-            text-decoration: none;
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
-            transition: background-color 0.3s;
-        }
-        
-        .nav-menu a:hover {
-            background-color: rgba(255,255,255,0.2);
-        }
-        
-        .nav-menu a.active {
-            background-color: rgba(255,255,255,0.3);
-        }
-        
-        /* Main content */
-        .main-content {
-            max-width: 1400px;
-            margin: 2rem auto;
-            padding: 0 2rem;
-        }
-        
-        /* Common components */
-        .card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            padding: 2rem;
-            margin-bottom: 2rem;
-        }
-        
-        .btn {
-            display: inline-block;
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            text-decoration: none;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: all 0.3s;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(102,126,234,0.3);
-        }
-        
-        .btn-danger {
-            background: #dc3545;
-            color: white;
-        }
-        
-        .btn-danger:hover {
-            background: #c82333;
-        }
-        
-        .btn-success {
-            background: #28a745;
-            color: white;
-        }
-        
-        .btn-success:hover {
-            background: #218838;
-        }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-            .nav-container {
-                flex-direction: column;
-                gap: 1rem;
-            }
-            
-            .nav-menu {
-                flex-wrap: wrap;
-                justify-content: center;
-            }
-            
-            .main-content {
-                padding: 0 1rem;
-            }
-        }
-    </style>
-    {% block extra_css %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="/dashboard" class="nav-brand">🦝 VigilantRaccoon</a>
-            <ul class="nav-menu">
-                <li><a href="/dashboard" class="{% if active_page == 'dashboard' %}active{% endif %}">🏠 Dashboard</a></li>
-                <li><a href="/alerts" class="{% if active_page == 'alerts' %}active{% endif %}">🔒 Security Alerts</a></li>
-                <li><a href="/servers" class="{% if active_page == 'servers' %}active{% endif %}">🖥️ Server Management</a></li>
-                                       <li><a href="/exceptions" class="{% if active_page == 'exceptions' %}active{% endif %}">🚫 Alert Exceptions</a></li>
-                       <li><a href="/settings" class="{% if active_page == 'settings' %}active{% endif %}">⚙️ Settings</a></li>
-            </ul>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a href="/dashboard" class="nav-brand">VigilantRaccoon</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'dashboard' %}active{% endif %}" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'alerts' %}active{% endif %}" href="/alerts">Security Alerts</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'process-monitoring' %}active{% endif %}" href="/process-monitoring">Process Monitoring</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'servers' %}active{% endif %}" href="/servers">Server Management</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'exceptions' %}active{% endif %}" href="/exceptions">Alert Exceptions</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'settings' %}active{% endif %}" href="/settings">Settings</a>
+                    </li>
+                </ul>
+            </div>
         </div>
     </nav>
-    
+
     <main class="main-content">
-        {% block content %}{% endblock %}
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
     </main>
-    
-    {% block extra_js %}{% endblock %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>

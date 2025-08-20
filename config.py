@@ -36,6 +36,7 @@ class StorageConfig:
 
 @dataclass
 class CollectionConfig:
+    poll_interval_seconds: int = 60
     tail_lines: int = 2000
     ignore_source_ips: List[str] = field(default_factory=list)
 
@@ -50,6 +51,10 @@ class WebConfig:
 class LoggingConfig:
     level: str = "INFO"           # DEBUG, INFO, WARNING, ERROR
     file_path: str = "./logs/app.log"
+    # Daily rotation settings
+    daily_rotation: bool = True   # Enable daily log rotation
+    retention_days: int = 30      # Number of days to keep log files
+    # Legacy settings (kept for backward compatibility)
     max_bytes: int = 1_000_000     # 1 MB
     backup_count: int = 3
     console: bool = True
@@ -84,7 +89,7 @@ def load_config(path: str | Path) -> AppConfig:
 
     return AppConfig(
         servers=servers,
-        poll_interval_seconds=int(raw.get("poll_interval_seconds", 60)),
+        poll_interval_seconds=int(raw.get("collection", {}).get("poll_interval_seconds", 60)),
         email=email,
         storage=storage,
         collection=collection,

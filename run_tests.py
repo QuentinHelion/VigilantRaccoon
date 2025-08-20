@@ -1,173 +1,171 @@
 #!/usr/bin/env python3
 """
-Script principal pour exécuter tous les tests unitaires de VigilantRaccoon
+Test runner for VigilantRaccoon
+Executes all tests and provides detailed reporting
 """
 
-import sys
 import os
-import unittest
+import sys
+import subprocess
 import time
 from pathlib import Path
 
-# Ajout du répertoire racine au path Python
-sys.path.insert(0, str(Path(__file__).parent))
+def find_test_directory(start_dir: str = None) -> Path:
+    """Find the tests directory"""
+    if start_dir is None:
+        start_dir = os.getcwd()
+    
+    # Look for tests directory
+    test_dir = Path(start_dir) / "tests"
+    if test_dir.exists() and test_dir.is_dir():
+        return test_dir
+    
+    # Look in parent directories
+    parent = Path(start_dir).parent
+    if parent != Path(start_dir):
+        return find_test_directory(str(parent))
+    
+    print(f"Test directory not found: {start_dir}")
+    return None
 
-def run_test_suite():
-    """Exécute la suite complète de tests"""
-    print("🧪 Démarrage des tests unitaires de VigilantRaccoon")
-    print("=" * 60)
+def run_tests(test_dir: Path, test_name: str = None) -> tuple[int, int, int]:
+    """Run tests and return results"""
+    os.chdir(test_dir)
     
-    # Découverte automatique des tests
-    loader = unittest.TestLoader()
-    start_dir = Path(__file__).parent / "tests"
-    
-    if not start_dir.exists():
-        print(f"❌ Répertoire de tests non trouvé: {start_dir}")
-        return False
-    
-    # Découverte des tests
-    suite = loader.discover(start_dir, pattern="test_*.py")
-    
-    # Exécution des tests
-    runner = unittest.TextTestRunner(
-        verbosity=2,
-        stream=sys.stdout,
-        descriptions=True,
-        failfast=False
-    )
-    
-    start_time = time.time()
-    result = runner.run(suite)
-    end_time = time.time()
-    
-    # Affichage des résultats
-    print("\n" + "=" * 60)
-    print("📊 RÉSULTATS DES TESTS")
-    print("=" * 60)
-    
-    total_tests = result.testsRun
-    failures = len(result.failures)
-    errors = len(result.errors)
-    skipped = len(result.skipped) if hasattr(result, 'skipped') else 0
-    
-    print(f"✅ Tests exécutés: {total_tests}")
-    print(f"❌ Échecs: {failures}")
-    print(f"⚠️  Erreurs: {errors}")
-    print(f"⏭️  Ignorés: {skipped}")
-    print(f"⏱️  Temps d'exécution: {end_time - start_time:.2f} secondes")
-    
-    if failures > 0:
-        print(f"\n🚨 DÉTAILS DES ÉCHECS:")
-        for test, traceback in result.failures:
-            print(f"   • {test}: {traceback.split('AssertionError:')[-1].strip()}")
-    
-    if errors > 0:
-        print(f"\n💥 DÉTAILS DES ERREURS:")
-        for test, traceback in result.errors:
-            print(f"   • {test}: {traceback.split('Error:')[-1].strip()}")
-    
-    # Résumé final
-    print("\n" + "=" * 60)
-    if failures == 0 and errors == 0:
-        print("🎉 TOUS LES TESTS SONT PASSÉS AVEC SUCCÈS!")
-        success = True
+    if test_name:
+        # Run specific test
+        cmd = [sys.executable, "-m", "pytest", f"test_{test_name}.py", "-v"]
     else:
-        print("⚠️  CERTAINS TESTS ONT ÉCHOUÉ")
-        success = False
+        # Run all tests
+        cmd = [sys.executable, "-m", "pytest", "-v"]
     
-    print("=" * 60)
-    
-    return success
-
-
-def run_specific_test(test_name):
-    """Exécute un test spécifique"""
-    print(f"🧪 Exécution du test spécifique: {test_name}")
-    print("=" * 60)
-    
-    # Découverte du test spécifique
-    loader = unittest.TestLoader()
-    start_dir = Path(__file__).parent / "tests"
-    
-    if not start_dir.exists():
-        print(f"❌ Répertoire de tests non trouvé: {start_dir}")
-        return False
-    
-    # Recherche du test
-    suite = loader.discover(start_dir, pattern=f"test_{test_name}.py")
-    
-    if not suite.countTestCases():
-        print(f"❌ Aucun test trouvé pour: {test_name}")
-        return False
-    
-    # Exécution du test
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-    
-    return len(result.failures) == 0 and len(result.errors) == 0
-
-
-def list_available_tests():
-    """Liste tous les tests disponibles"""
-    print("📋 TESTS DISPONIBLES")
-    print("=" * 60)
-    
-    tests_dir = Path(__file__).parent / "tests"
-    
-    if not tests_dir.exists():
-        print("❌ Aucun test trouvé")
-        return
-    
-    test_files = list(tests_dir.glob("test_*.py"))
-    
-    if not test_files:
-        print("❌ Aucun fichier de test trouvé")
-        return
-    
-    for test_file in sorted(test_files):
-        test_name = test_file.stem.replace("test_", "")
-        print(f"   • {test_name}")
-    
-    print(f"\nTotal: {len(test_files)} tests disponibles")
-    print("\nPour exécuter un test spécifique:")
-    print(f"   python {__file__} --test <nom_du_test>")
-    print(f"   Exemple: python {__file__} --test domain_entities")
-
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        
+        # Parse pytest output
+        output_lines = result.stdout.split('\n')
+        total_tests = 0
+        failures = 0
+        errors = 0
+        
+        for line in output_lines:
+            if 'collected' in line and 'items' in line:
+                # Extract total test count
+                parts = line.split()
+                for i, part in enumerate(parts):
+                    if part.isdigit() and i > 0 and parts[i-1] == 'collected':
+                        total_tests = int(part)
+                        break
+            elif 'FAILED' in line:
+                failures += 1
+            elif 'ERROR' in line:
+                errors += 1
+        
+        return total_tests, failures, errors
+        
+    except subprocess.TimeoutExpired:
+        print("Tests timed out after 5 minutes")
+        return 0, 0, 1
+    except Exception as e:
+        print(f"Error running tests: {e}")
+        return 0, 0, 1
 
 def main():
-    """Fonction principale"""
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--help" or sys.argv[1] == "-h":
-            print("Usage:")
-            print(f"  python {__file__}                    # Exécute tous les tests")
-            print(f"  python {__file__} --test <nom>       # Exécute un test spécifique")
-            print(f"  python {__file__} --list             # Liste tous les tests disponibles")
-            print(f"  python {__file__} --help             # Affiche cette aide")
-            return
-        
-        elif sys.argv[1] == "--list" or sys.argv[1] == "-l":
-            list_available_tests()
-            return
-        
-        elif sys.argv[1] == "--test" or sys.argv[1] == "-t":
-            if len(sys.argv) < 3:
-                print("❌ Nom du test manquant")
-                print(f"Usage: python {__file__} --test <nom_du_test>")
-                return
-            
-            test_name = sys.argv[2]
-            success = run_specific_test(test_name)
-            sys.exit(0 if success else 1)
-        
-        else:
-            print(f"❌ Option inconnue: {sys.argv[1]}")
-            print(f"Utilisez --help pour voir les options disponibles")
-            sys.exit(1)
+    """Main function"""
+    if len(sys.argv) < 2:
+        print("Usage: python run_tests.py [all|test_name]")
+        sys.exit(1)
     
-    # Exécution de tous les tests par défaut
-    success = run_test_suite()
-    sys.exit(0 if success else 1)
-
+    command = sys.argv[1]
+    
+    # Find test directory
+    test_dir = find_test_directory()
+    if not test_dir:
+        sys.exit(1)
+    
+    print(f"Test directory: {test_dir}")
+    
+    if command == "all":
+        # Run all tests
+        print("Running all tests...")
+        start_time = time.time()
+        
+        total_tests, failures, errors = run_tests(test_dir)
+        
+        elapsed_time = time.time() - start_time
+        
+        print("\nTEST RESULTS")
+        print("=" * 50)
+        print(f"Tests executed: {total_tests}")
+        print(f"Failures: {failures}")
+        print(f"Errors: {errors}")
+        print(f"Time elapsed: {elapsed_time:.2f} seconds")
+        
+        if failures > 0 or errors > 0:
+            print("\nSOME TESTS FAILED")
+            sys.exit(1)
+        else:
+            print("\nAll tests passed!")
+            sys.exit(0)
+    
+    elif command == "list":
+        # List available tests
+        test_files = list(test_dir.glob("test_*.py"))
+        if test_files:
+            print("Available tests:")
+            for test_file in test_files:
+                test_name = test_file.stem[5:]  # Remove 'test_' prefix
+                print(f"  - {test_name}")
+        else:
+            print("No test files found")
+    
+    elif command == "help":
+        # Show help
+        print("VigilantRaccoon Test Runner")
+        print("=" * 30)
+        print("Commands:")
+        print("  all     - Run all tests")
+        print("  list    - List available tests")
+        print("  help    - Show this help")
+        print("  <name>  - Run specific test (e.g., 'config' for test_config.py)")
+        print("\nExamples:")
+        print("  python run_tests.py all")
+        print("  python run_tests.py config")
+        print("  python run_tests.py list")
+    
+    else:
+        # Run specific test
+        test_name = command
+        test_file = test_dir / f"test_{test_name}.py"
+        
+        if not test_file.exists():
+            print(f"Test file not found: {test_file}")
+            sys.exit(1)
+        
+        print(f"Running test: {test_name}")
+        start_time = time.time()
+        
+        total_tests, failures, errors = run_tests(test_dir, test_name)
+        
+        elapsed_time = time.time() - start_time
+        
+        print(f"\nTest '{test_name}' completed in {elapsed_time:.2f} seconds")
+        print(f"Tests executed: {total_tests}")
+        print(f"Failures: {failures}")
+        print(f"Errors: {errors}")
+        
+        if failures > 0 or errors > 0:
+            print(f"Test '{test_name}' failed")
+            sys.exit(1)
+        else:
+            print(f"Test '{test_name}' passed!")
 
 if __name__ == "__main__":
-    main() 
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nTests interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        sys.exit(1) 

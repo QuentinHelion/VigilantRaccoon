@@ -26,9 +26,28 @@ def setup_logging(cfg: LoggingConfig) -> None:
         datefmt="%Y-%m-%dT%H:%M:%S",
     )
 
-    file_handler = logging.handlers.RotatingFileHandler(
-        filename=str(log_path), maxBytes=int(cfg.max_bytes), backupCount=int(cfg.backup_count), encoding="utf-8"
-    )
+    # Use daily rotation if enabled, otherwise fall back to size-based rotation
+    if cfg.daily_rotation:
+        # Daily rotation with configurable retention
+        file_handler = logging.handlers.TimedRotatingFileHandler(
+            filename=str(log_path),
+            when="midnight",
+            interval=1,
+            backupCount=cfg.retention_days,
+            encoding="utf-8"
+        )
+        # Set suffix format for rotated files (YYYY-MM-DD)
+        file_handler.suffix = "%Y-%m-%d"
+        file_handler.namer = lambda name: name.replace(".log", "") + ".log"
+    else:
+        # Legacy size-based rotation
+        file_handler = logging.handlers.RotatingFileHandler(
+            filename=str(log_path), 
+            maxBytes=int(cfg.max_bytes), 
+            backupCount=int(cfg.backup_count), 
+            encoding="utf-8"
+        )
+    
     file_handler.setFormatter(formatter)
     file_handler.setLevel(level)
     root.addHandler(file_handler)

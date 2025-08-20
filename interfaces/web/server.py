@@ -15,23 +15,15 @@ from scheduler import CollectorThread
 def create_app(cfg: AppConfig, collector: Optional[CollectorThread] = None) -> Flask:
     # Get the project root directory (where templates/ is located)
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    app = Flask(__name__, template_folder=os.path.join(project_root, "templates"))
+    app = Flask(__name__, 
+                template_folder=os.path.join(project_root, "templates"),
+                static_folder=os.path.join(project_root, "static"))
     alert_repo = SQLiteAlertRepository(cfg.storage.sqlite_path)
     server_repo = SQLiteServerRepository(cfg.storage.sqlite_path)
     exception_repo = SQLiteAlertExceptionRepository(cfg.storage.sqlite_path)
     log = logging.getLogger("Web")
 
-    @app.get("/logo.png")
-    def serve_logo() -> Response:
-        """Serve the logo image."""
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        return send_from_directory(project_root, "logo.png")
 
-    @app.get("/favicon.ico")
-    def serve_favicon() -> Response:
-        """Serve the logo as favicon."""
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        return send_from_directory(project_root, "logo.png", mimetype="image/x-icon")
 
     @app.get("/health")
     def health() -> dict:
@@ -241,6 +233,11 @@ def create_app(cfg: AppConfig, collector: Optional[CollectorThread] = None) -> F
         """Alerts page with filtering and management."""
         return render_template("alerts.html", active_page="alerts")
 
+    @app.get("/process-monitoring")
+    def process_monitoring_page() -> Response:
+        """Process monitoring page with real-time process alerts."""
+        return render_template("process_monitoring.html", active_page="process-monitoring")
+
     @app.get("/servers")
     def servers_page() -> Response:
         """Server management page."""
@@ -263,6 +260,7 @@ def create_app(cfg: AppConfig, collector: Optional[CollectorThread] = None) -> F
         server_filter = request.args.get("server")
         level_filter = request.args.get("level")
         acknowledged_filter = request.args.get("acknowledged")
+        log_source_filter = request.args.get("log_source")
         
         # Parse acknowledged filter
         acknowledged = None
@@ -278,6 +276,8 @@ def create_app(cfg: AppConfig, collector: Optional[CollectorThread] = None) -> F
             alerts = [a for a in alerts if a.server_name == server_filter]
         if level_filter:
             alerts = [a for a in alerts if a.level == level_filter]
+        if log_source_filter:
+            alerts = [a for a in alerts if a.log_source == log_source_filter]
         
         data = [
             {
@@ -294,6 +294,45 @@ def create_app(cfg: AppConfig, collector: Optional[CollectorThread] = None) -> F
                 "acknowledged_by": a.acknowledged_by,
             }
             for a in alerts
+        ]
+        return jsonify(data)
+
+    @app.get("/api/process-monitoring")
+    def get_process_monitoring_alerts() -> Response:
+        """Get alerts specifically from process monitoring."""
+        limit = int(request.args.get("limit", 200))
+        acknowledged_filter = request.args.get("acknowledged")
+        
+        # Parse acknowledged filter
+        acknowledged = None
+        if acknowledged_filter == "true":
+            acknowledged = True
+        elif acknowledged_filter == "false":
+            acknowledged = False
+        
+        # Get all alerts and filter for process monitoring
+        all_alerts = alert_repo.list_alerts(limit=1000, acknowledged=acknowledged)
+        process_alerts = [a for a in all_alerts if a.log_source in ['process_monitoring', 'file_monitoring']]
+        
+        # Apply limit after filtering
+        if limit:
+            process_alerts = process_alerts[:limit]
+        
+        data = [
+            {
+                "id": a.id,
+                "server_name": a.server_name,
+                "source_log": a.log_source,
+                "timestamp": a.timestamp.isoformat(),
+                "level": a.level,
+                "message": a.message,
+                "ip_address": a.ip_address,
+                "rule": a.rule,
+                "acknowledged": a.acknowledged,
+                "acknowledged_at": a.acknowledged_at.isoformat() if a.acknowledged_at else None,
+                "acknowledged_by": a.acknowledged_by,
+            }
+            for a in process_alerts
         ]
         return jsonify(data)
 
