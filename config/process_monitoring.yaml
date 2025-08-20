@@ -1,0 +1,126 @@
+# Configuration pour la surveillance des processus
+process_monitoring:
+  # Patterns suspects à détecter
+  suspicious_patterns:
+    reverse_shell:
+      enabled: true
+      level: "high"
+      patterns:
+        - "nc -e /bin/bash"
+        - "bash -i"
+        - "python -c 'import socket'"
+        - "perl -e 'use Socket'"
+        - "ruby -rsocket"
+    
+    download_tools:
+      enabled: true
+      level: "medium"
+      patterns:
+        - "wget.*http"
+        - "curl.*http"
+        - "ftp.*get"
+        - "scp.*download"
+    
+    privilege_escalation:
+      enabled: true
+      level: "high"
+      patterns:
+        - "sudo.*bash"
+        - "su -"
+        - "doas.*sh"
+    
+    file_manipulation:
+      enabled: true
+      level: "medium"
+      patterns:
+        - "chmod 777"
+        - "chmod 666"
+        - "chown root"
+    
+    network_tools:
+      enabled: true
+      level: "medium"
+      patterns:
+        - "nmap"
+        - "masscan"
+        - "hydra"
+        - "john"
+    
+    crypto_mining:
+      enabled: true
+      level: "high"
+      patterns:
+        - "xmr"
+        - "monero"
+        - "bitcoin"
+        - "mining"
+  
+  # Ports suspects
+  suspicious_ports:
+    - 22    # SSH
+    - 23    # Telnet
+    - 3389  # RDP
+    - 5900  # VNC
+    - 5901  # VNC
+    - 8080  # HTTP alternatif
+    - 8443  # HTTPS alternatif
+    - 9000  # Port alternatif
+  
+  # Seuils de ressources
+  resource_thresholds:
+    cpu_percent: 80.0
+    memory_percent: 80.0
+    disk_usage_percent: 90.0
+  
+  # Emplacements de fichiers suspects
+  suspicious_locations:
+    - "/tmp"
+    - "/var/tmp"
+    - "/dev/shm"
+    - "/home/*/.cache"
+    - "/var/log"
+  
+  # Extensions de fichiers suspects
+  suspicious_extensions:
+    - ".sh"
+    - ".py"
+    - ".pl"
+    - ".rb"
+    - ".js"
+    - ".php"
+    - ".exe"
+    - ".bat"
+    - ".cmd"
+  
+  # Commandes whitelist (ignorées)
+  whitelist_commands:
+    - "sshd"
+    - "systemd"
+    - "cron"
+    - "rsyslogd"
+    - "ntpd"
+    - "snmpd"
+    - "apache2"
+    - "nginx"
+    - "mysql"
+    - "postgresql"
+    - "redis-server"
+    - "docker"
+    - "kubelet"
+  
+  # Utilisateurs whitelist (ignorés)
+  whitelist_users:
+    - "root"
+    - "systemd"
+    - "daemon"
+    - "sys"
+    - "bin"
+  
+  # Intervalle de surveillance (en secondes)
+  monitoring_interval: 300  # 5 minutes
+  
+  # Timeout pour les commandes système (en secondes)
+  command_timeout: 30
+  
+  # Niveau de log pour la surveillance des processus
+  log_level: "INFO" 

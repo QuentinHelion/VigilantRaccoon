@@ -1,0 +1,287 @@
+{% extends "layout.html" %}
+
+{% block title %}Security Alerts - VigilantRaccoon{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Security Alerts</h1>
+    <p class="text-muted">Monitor and manage security alerts from all monitored servers</p>
+</div>
+
+<div class="filters-section">
+    <div class="filters-row">
+        <div class="filter-group">
+            <label for="serverFilter" class="form-label">Server</label>
+            <select id="serverFilter" class="form-select">
+                <option value="">All Servers</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="levelFilter" class="form-label">Level</label>
+            <select id="levelFilter" class="form-select">
+                <option value="">All Levels</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="sourceFilter" class="form-label">Log Source</label>
+            <select id="sourceFilter" class="form-select">
+                <option value="">All Sources</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="acknowledgedFilter" class="form-label">Status</label>
+            <select id="acknowledgedFilter" class="form-select">
+                <option value="">All</option>
+                <option value="false">Unacknowledged</option>
+                <option value="true">Acknowledged</option>
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button id="refreshBtn" class="btn btn-primary">Refresh</button>
+            <button id="clearFiltersBtn" class="btn btn-secondary">Clear Filters</button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3>Security Alerts</h3>
+        <div class="d-flex align-items-center">
+            <span class="me-3">
+                <span class="text-success" id="acknowledgedCount">0</span> acknowledged |
+                <span class="text-danger" id="unacknowledgedCount">0</span> unacknowledged
+            </span>
+            <button id="acknowledgeAllBtn" class="btn btn-success btn-sm">Acknowledge All</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table" id="alertsTable">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Server</th>
+                        <th>Level</th>
+                        <th>Source</th>
+                        <th>Rule</th>
+                        <th>Message</th>
+                        <th>IP Address</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="alertsTableBody">
+                    <tr>
+                        <td colspan="9" class="text-center text-muted">Loading alerts...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allAlerts = [];
+let filteredAlerts = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadAlerts();
+    setupEventListeners();
+    
+    // Auto-refresh every 30 seconds
+    setInterval(loadAlerts, 30000);
+});
+
+function setupEventListeners() {
+    document.getElementById('refreshBtn').addEventListener('click', loadAlerts);
+    document.getElementById('clearFiltersBtn').addEventListener('click', clearFilters);
+    document.getElementById('acknowledgeAllBtn').addEventListener('click', acknowledgeAll);
+    
+    // Filter change events
+    document.getElementById('serverFilter').addEventListener('change', applyFilters);
+    document.getElementById('levelFilter').addEventListener('change', applyFilters);
+    document.getElementById('sourceFilter').addEventListener('change', applyFilters);
+    document.getElementById('acknowledgedFilter').addEventListener('change', applyFilters);
+}
+
+async function loadAlerts() {
+    try {
+        const response = await fetch('/api/alerts?limit=1000');
+        if (response.ok) {
+            allAlerts = await response.json();
+            updateFilters();
+            applyFilters();
+        } else {
+            throw new Error('Failed to load alerts');
+        }
+    } catch (error) {
+        console.error('Error loading alerts:', error);
+        document.getElementById('alertsTableBody').innerHTML = 
+            '<tr><td colspan="9" class="text-center text-danger">Failed to load alerts</td></tr>';
+    }
+}
+
+function updateFilters() {
+    // Update server filter
+    const serverFilter = document.getElementById('serverFilter');
+    const servers = [...new Set(allAlerts.map(a => a.server_name))].sort();
+    serverFilter.innerHTML = '<option value="">All Servers</option>' +
+        servers.map(s => `<option value="${s}">${s}</option>`).join('');
+    
+    // Update source filter
+    const sourceFilter = document.getElementById('sourceFilter');
+    const sources = [...new Set(allAlerts.map(a => a.log_source))].sort();
+    sourceFilter.innerHTML = '<option value="">All Sources</option>' +
+        sources.map(s => `<option value="${s}">${s}</option>`).join('');
+}
+
+function applyFilters() {
+    const serverFilter = document.getElementById('serverFilter').value;
+    const levelFilter = document.getElementById('levelFilter').value;
+    const sourceFilter = document.getElementById('sourceFilter').value;
+    const acknowledgedFilter = document.getElementById('acknowledgedFilter').value;
+    
+    filteredAlerts = allAlerts.filter(alert => {
+        if (serverFilter && alert.server_name !== serverFilter) return false;
+        if (levelFilter && alert.level !== levelFilter) return false;
+        if (sourceFilter && alert.log_source !== sourceFilter) return false;
+        if (acknowledgedFilter !== '' && alert.acknowledged.toString() !== acknowledgedFilter) return false;
+        return true;
+    });
+    
+    displayAlerts();
+    updateCounts();
+}
+
+function displayAlerts() {
+    const tbody = document.getElementById('alertsTableBody');
+    
+    if (filteredAlerts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">No alerts found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = filteredAlerts.map(alert => `
+        <tr>
+            <td>${formatTimestamp(alert.timestamp)}</td>
+            <td>${escapeHtml(alert.server_name)}</td>
+            <td><span class="status-badge status-${getLevelClass(alert.level)}">${alert.level}</span></td>
+            <td>${escapeHtml(alert.log_source)}</td>
+            <td>${escapeHtml(alert.rule)}</td>
+            <td>${escapeHtml(alert.message)}</td>
+            <td>${alert.ip_address || '-'}</td>
+            <td>
+                <span class="status-badge ${alert.acknowledged ? 'status-success' : 'status-warning'}">
+                    ${alert.acknowledged ? 'Acknowledged' : 'Unacknowledged'}
+                </span>
+            </td>
+            <td>
+                ${!alert.acknowledged ? 
+                    `<button class="btn btn-success btn-sm" onclick="acknowledgeAlert(${alert.id})">Ack</button>` : 
+                    '<span class="text-muted">-</span>'
+                }
+            </td>
+        </tr>
+    `).join('');
+}
+
+function updateCounts() {
+    const acknowledged = filteredAlerts.filter(a => a.acknowledged).length;
+    const unacknowledged = filteredAlerts.filter(a => !a.acknowledged).length;
+    
+    document.getElementById('acknowledgedCount').textContent = acknowledged;
+    document.getElementById('unacknowledgedCount').textContent = unacknowledged;
+}
+
+function clearFilters() {
+    document.getElementById('serverFilter').value = '';
+    document.getElementById('levelFilter').value = '';
+    document.getElementById('sourceFilter').value = '';
+    document.getElementById('acknowledgedFilter').value = '';
+    applyFilters();
+}
+
+async function acknowledgeAlert(alertId) {
+    try {
+        const response = await fetch(`/api/alerts/${alertId}/acknowledge`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            // Update local data
+            const alert = allAlerts.find(a => a.id === alertId);
+            if (alert) alert.acknowledged = true;
+            
+            // Refresh display
+            applyFilters();
+        } else {
+            throw new Error('Failed to acknowledge alert');
+        }
+    } catch (error) {
+        console.error('Error acknowledging alert:', error);
+        alert('Failed to acknowledge alert');
+    }
+}
+
+async function acknowledgeAll() {
+    if (!confirm('Are you sure you want to acknowledge all unacknowledged alerts?')) {
+        return;
+    }
+    
+    const unacknowledged = filteredAlerts.filter(a => !a.acknowledged);
+    if (unacknowledged.length === 0) {
+        alert('No unacknowledged alerts to acknowledge');
+        return;
+    }
+    
+    try {
+        const promises = unacknowledged.map(alert => 
+            fetch(`/api/alerts/${alert.id}/acknowledge`, { method: 'POST' })
+        );
+        
+        await Promise.all(promises);
+        
+        // Update local data
+        unacknowledged.forEach(alert => {
+            const localAlert = allAlerts.find(a => a.id === alert.id);
+            if (localAlert) localAlert.acknowledged = true;
+        });
+        
+        // Refresh display
+        applyFilters();
+        alert(`Successfully acknowledged ${unacknowledged.length} alerts`);
+    } catch (error) {
+        console.error('Error acknowledging all alerts:', error);
+        alert('Failed to acknowledge some alerts');
+    }
+}
+
+function getLevelClass(level) {
+    switch (level.toLowerCase()) {
+        case 'critical': return 'danger';
+        case 'high': return 'danger';
+        case 'medium': return 'warning';
+        case 'low': return 'info';
+        default: return 'secondary';
+    }
+}
+
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleString();
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

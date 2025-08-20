@@ -1,0 +1,339 @@
+{% extends "layout.html" %}
+
+{% block title %}Server Management - VigilantRaccoon{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Server Management</h1>
+    <p class="text-muted">Configure and manage monitoring servers</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Add New Server</h3>
+    </div>
+    <div class="card-body">
+        <form id="addServerForm">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="serverName" class="form-label">Server Name</label>
+                        <input type="text" id="serverName" name="name" class="form-control" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="serverHost" class="form-label">Host/IP Address</label>
+                        <input type="text" id="serverHost" name="host" class="form-control" required>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="serverPort" class="form-label">SSH Port</label>
+                        <input type="number" id="serverPort" name="port" class="form-control" value="22" min="1" max="65535">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="serverUsername" class="form-label">Username</label>
+                        <input type="text" id="serverUsername" name="username" class="form-control" required>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="authMethod" class="form-label">Authentication Method</label>
+                        <select id="authMethod" class="form-select" onchange="toggleAuthFields()">
+                            <option value="password">Password</option>
+                            <option value="key">SSH Key</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group" id="passwordGroup">
+                <label for="serverPassword" class="form-label">Password</label>
+                <input type="password" id="serverPassword" name="password" class="form-control">
+            </div>
+            
+            <div class="form-group d-none" id="keyGroup">
+                <label for="serverKeyPath" class="form-label">Private Key Path</label>
+                <input type="text" id="serverKeyPath" name="private_key_path" class="form-control" placeholder="/path/to/private/key">
+            </div>
+            
+            <div class="form-group">
+                <label for="serverLogs" class="form-label">Log Sources</label>
+                <textarea id="serverLogs" name="logs" class="form-control" rows="3" placeholder="Enter log sources, one per line&#10;Example:&#10;journal:ssh&#10;/var/log/fail2ban.log"></textarea>
+                <div class="help-text">
+                    <strong>Supported log sources:</strong><br>
+                    • <code>journal:ssh</code> - Systemd SSH service logs (Debian/Ubuntu)<br>
+                    • <code>journal:sshd</code> - Systemd SSH service logs (RHEL/CentOS)<br>
+                    • <code>/var/log/auth.log</code> - Authentication logs (Debian/Ubuntu)<br>
+                    • <code>/var/log/secure</code> - Authentication logs (RHEL/CentOS)<br>
+                    • <code>/var/log/fail2ban.log</code> - Fail2Ban logs (All Linux)<br>
+                    • <code>ssh:auto</code> - Auto-detect best source
+                </div>
+            </div>
+            
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Add Server</button>
+                <button type="reset" class="btn btn-secondary">Reset Form</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Log Sources</h3>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Source</th>
+                        <th>Description</th>
+                        <th>OS Support</th>
+                        <th>Example</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>journal:ssh</code></td>
+                        <td>Systemd SSH service logs</td>
+                        <td>Debian/Ubuntu</td>
+                        <td>SSH login attempts, key-based auth</td>
+                    </tr>
+                    <tr>
+                        <td><code>journal:sshd</code></td>
+                        <td>Systemd SSH service logs</td>
+                        <td>RHEL/CentOS</td>
+                        <td>SSH login attempts, key-based auth</td>
+                    </tr>
+                    <tr>
+                        <td><code>/var/log/auth.log</code></td>
+                        <td>Authentication logs</td>
+                        <td>Debian/Ubuntu</td>
+                        <td>PAM auth, sudo usage, user changes</td>
+                    </tr>
+                    <tr>
+                        <td><code>/var/log/secure</code></td>
+                        <td>Authentication logs</td>
+                        <td>RHEL/CentOS</td>
+                        <td>PAM auth, sudo usage, user changes</td>
+                    </tr>
+                    <tr>
+                        <td><code>/var/log/fail2ban.log</code></td>
+                        <td>Fail2Ban logs</td>
+                        <td>All Linux</td>
+                        <td>IP bans, failed login attempts</td>
+                    </tr>
+                    <tr>
+                        <td><code>ssh:auto</code></td>
+                        <td>Auto-detect best source</td>
+                        <td>All Linux</td>
+                        <td>Automatically selects optimal log source</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3>Configured Servers</h3>
+        <button id="refreshServersBtn" class="btn btn-primary">Refresh</button>
+    </div>
+    <div class="card-body">
+        <div id="serversList">
+            <div class="text-center text-muted">Loading servers...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let servers = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadServers();
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    document.getElementById('addServerForm').addEventListener('submit', addServer);
+    document.getElementById('refreshServersBtn').addEventListener('click', loadServers);
+}
+
+function toggleAuthFields() {
+    const authMethod = document.getElementById('authMethod').value;
+    const passwordGroup = document.getElementById('passwordGroup');
+    const keyGroup = document.getElementById('keyGroup');
+    
+    if (authMethod === 'password') {
+        passwordGroup.classList.remove('d-none');
+        keyGroup.classList.add('d-none');
+        document.getElementById('serverPassword').required = true;
+        document.getElementById('serverKeyPath').required = false;
+    } else {
+        passwordGroup.classList.add('d-none');
+        keyGroup.classList.remove('d-none');
+        document.getElementById('serverPassword').required = false;
+        document.getElementById('serverKeyPath').required = true;
+    }
+}
+
+async function addServer(event) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const serverData = {
+        name: formData.get('name'),
+        host: formData.get('host'),
+        port: parseInt(formData.get('port')) || 22,
+        username: formData.get('username'),
+        logs: formData.get('logs').split('\n').filter(line => line.trim())
+    };
+    
+    // Add authentication data
+    const authMethod = document.getElementById('authMethod').value;
+    if (authMethod === 'password') {
+        serverData.password = formData.get('password');
+    } else {
+        serverData.private_key_path = formData.get('private_key_path');
+    }
+    
+    try {
+        const response = await fetch('/api/servers', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(serverData)
+        });
+        
+        if (response.ok) {
+            alert('Server added successfully!');
+            event.target.reset();
+            loadServers();
+        } else {
+            const error = await response.text();
+            throw new Error(error || 'Failed to add server');
+        }
+    } catch (error) {
+        console.error('Error adding server:', error);
+        alert('Failed to add server: ' + error.message);
+    }
+}
+
+async function loadServers() {
+    try {
+        const response = await fetch('/api/servers');
+        if (response.ok) {
+            servers = await response.json();
+            displayServers();
+        } else {
+            throw new Error('Failed to load servers');
+        }
+    } catch (error) {
+        console.error('Error loading servers:', error);
+        document.getElementById('serversList').innerHTML = '<div class="text-center text-danger">Failed to load servers</div>';
+    }
+}
+
+function displayServers() {
+    const container = document.getElementById('serversList');
+    
+    if (servers.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted">No servers configured</div>';
+        return;
+    }
+    
+    container.innerHTML = servers.map(server => `
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h5 class="card-title">${escapeHtml(server.name)}</h5>
+                        <p class="card-text">
+                            <strong>Host:</strong> ${escapeHtml(server.host)}:${server.port}<br>
+                            <strong>Username:</strong> ${escapeHtml(server.username)}<br>
+                            <strong>Log Sources:</strong> ${server.logs.length > 0 ? server.logs.map(log => `<code>${escapeHtml(log)}</code>`).join(', ') : 'None'}
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button class="btn btn-danger btn-sm" onclick="deleteServer('${server.name}')">Delete</button>
+                        <button class="btn btn-info btn-sm" onclick="testConnection('${server.name}')">Test Connection</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function deleteServer(serverName) {
+    if (!confirm(`Are you sure you want to delete server '${serverName}'?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/servers/${encodeURIComponent(serverName)}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            alert('Server deleted successfully!');
+            loadServers();
+        } else {
+            throw new Error('Failed to delete server');
+        }
+    } catch (error) {
+        console.error('Error deleting server:', error);
+        alert('Failed to delete server: ' + error.message);
+    }
+}
+
+async function testConnection(serverName) {
+    const server = servers.find(s => s.name === serverName);
+    if (!server) {
+        alert('Server not found');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/servers/test-connection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(server)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                alert('Connection successful!');
+            } else {
+                alert('Connection failed: ' + result.message);
+            }
+        } else {
+            throw new Error('Failed to test connection');
+        }
+    } catch (error) {
+        console.error('Error testing connection:', error);
+        alert('Failed to test connection: ' + error.message);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

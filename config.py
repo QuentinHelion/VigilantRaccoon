@@ -10,8 +10,8 @@ import yaml
 class ServerConfig:
     name: str
     host: str
-    port: int
     username: str
+    port: int = 22
     password: Optional[str] = None
     private_key_path: Optional[str] = None
     logs: List[str] = field(default_factory=list)
@@ -36,6 +36,7 @@ class StorageConfig:
 
 @dataclass
 class CollectionConfig:
+    poll_interval_seconds: int = 60
     tail_lines: int = 2000
     ignore_source_ips: List[str] = field(default_factory=list)
 
@@ -50,6 +51,10 @@ class WebConfig:
 class LoggingConfig:
     level: str = "INFO"           # DEBUG, INFO, WARNING, ERROR
     file_path: str = "./logs/app.log"
+    # Daily rotation settings
+    daily_rotation: bool = True   # Enable daily log rotation
+    retention_days: int = 30      # Number of days to keep log files
+    # Legacy settings (kept for backward compatibility)
     max_bytes: int = 1_000_000     # 1 MB
     backup_count: int = 3
     console: bool = True
@@ -70,7 +75,12 @@ def load_config(path: str | Path) -> AppConfig:
     with open(path, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
 
-    servers = [ServerConfig(**srv) for srv in raw.get("servers", [])]
+    # Filtrage des champs valides pour ServerConfig
+    def filter_server_config(srv_data):
+        valid_fields = {'name', 'host', 'port', 'username', 'password', 'private_key_path', 'logs'}
+        return {k: v for k, v in srv_data.items() if k in valid_fields}
+    
+    servers = [ServerConfig(**filter_server_config(srv)) for srv in raw.get("servers", [])]
     email = EmailConfig(**(raw.get("email") or {}))
     storage = StorageConfig(**(raw.get("storage") or {}))
     collection = CollectionConfig(**(raw.get("collection") or {}))
@@ -79,7 +89,7 @@ def load_config(path: str | Path) -> AppConfig:
 
     return AppConfig(
         servers=servers,
-        poll_interval_seconds=int(raw.get("poll_interval_seconds", 60)),
+        poll_interval_seconds=int(raw.get("collection", {}).get("poll_interval_seconds", 60)),
         email=email,
         storage=storage,
         collection=collection,

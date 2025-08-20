@@ -1,34 +1,79 @@
+# VigilantRaccoon Configuration Example
+# Copy this file to config.yaml and modify with your settings
+
 servers:
-  - name: server1
-    host: 192.168.1.10
+  - name: localhost
+    host: localhost
     port: 22
-    username: ubuntu
-    # choose one authentication method
-    password: null
-    private_key_path: ~/.ssh/id_rsa
+    username: your_username
+    # Choose one authentication method
+    # password: your_password
+    private_key_path: /path/to/your/private_key
     logs:
-      - /var/log/auth.log
+      - journal:ssh            # Debian/Ubuntu
       - /var/log/fail2ban.log
 
-poll_interval_seconds: 60
+  - name: web-server
+    host: 192.168.1.100
+    port: 22
+    username: admin
+    # Choose one authentication method
+    # password: your_password
+    private_key_path: /path/to/your/private_key
+    logs:
+      - journal:ssh            # Debian/Ubuntu
+      - /var/log/fail2ban.log
 
+  - name: database-server
+    host: 192.168.1.101
+    port: 22
+    username: admin
+    # Choose one authentication method
+    # password: your_password
+    private_key_path: /path/to/your/private_key
+    logs:
+      - journal:ssh
+      - /var/log/fail2ban.log
+
+# Collection settings
+collection:
+  poll_interval_seconds: 60   # How often to check for new logs
+  tail_lines: 100             # Number of lines to read from log files
+  ignore_source_ips:          # IP addresses to ignore (e.g., monitoring servers)
+    - 127.0.0.1
+    - ::1
+    - 192.168.1.50
+
+# Email notification settings
 email:
-  enabled: false
-  smtp_host: smtp.example.com
+  enabled: false              # Set to true to enable email notifications
+  smtp_host: smtp.gmail.com
   smtp_port: 587
   use_tls: true
-  username: user@example.com
-  password: your_password
-  from_addr: alerts@example.com
+  username: your_email@gmail.com
+  password: your_app_password
+  from_addr: alerts@yourdomain.com
   to_addrs:
-    - you@example.com
+    - admin@yourdomain.com
+    - security@yourdomain.com
 
+# Storage settings
 storage:
   sqlite_path: ./data/vigilant_raccoon.db
 
-collection:
-  tail_lines: 2000
+# Logging configuration
+logging:
+  level: INFO           # DEBUG, INFO, WARNING, ERROR
+  file_path: ./logs/app.log
+  # Daily rotation settings
+  daily_rotation: true  # Enable daily log rotation
+  retention_days: 30    # Number of days to keep log files (default: 30)
+  # Legacy size-based rotation settings (used when daily_rotation is false)
+  max_bytes: 1000000    # 1 MB
+  backup_count: 3
+  console: true         # Set to false in production
 
+# Web interface settings
 web:
-  host: 127.0.0.1
-  port: 8000
+  host: "0.0.0.0"            # Bind to all interfaces
+  port: 8000                  # Web interface port

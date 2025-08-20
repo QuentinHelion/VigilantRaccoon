@@ -1,259 +1,418 @@
 from __future__ import annotations
 
-import json
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime
-from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import List, Optional, Iterable
 
-from domain.entities import Alert, Server
-from domain.repositories import AlertRepository, StateRepository, ServerRepository
-
-
-def _ensure_db(path: str) -> None:
-    db_path = Path(path)
-    if not db_path.parent.exists():
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS alerts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                server_name TEXT NOT NULL,
-                source_log TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                level TEXT NOT NULL,
-                message TEXT NOT NULL,
-                ip_address TEXT,
-                rule TEXT,
-                created_at TEXT NOT NULL,
-                acknowledged BOOLEAN DEFAULT FALSE,
-                acknowledged_at TEXT,
-                acknowledged_by TEXT
-            );
-            """
-        )
-        conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_alerts_timestamp ON alerts(timestamp);
-            """
-        )
-        conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_alerts_acknowledged ON alerts(acknowledged);
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS state (
-                server_name TEXT NOT NULL,
-                log_path TEXT NOT NULL,
-                last_seen_ts TEXT NOT NULL,
-                PRIMARY KEY (server_name, log_path)
-            );
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS servers (
-                name TEXT PRIMARY KEY,
-                host TEXT NOT NULL,
-                port INTEGER NOT NULL,
-                username TEXT NOT NULL,
-                password TEXT,
-                private_key_path TEXT,
-                logs TEXT NOT NULL
-            );
-            """
-        )
-        conn.commit()
+from domain.entities import Alert, Server, AlertException
+from domain.repositories import AlertRepository, ServerRepository, StateRepository, AlertExceptionRepository
 
 
 class SQLiteAlertRepository(AlertRepository):
-    def __init__(self, db_path: str) -> None:
-        _ensure_db(db_path)
+    def __init__(self, db_path: str):
         self._db_path = db_path
+        self._init_db()
+
+    def _init_db(self):
+        with self._get_connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS alerts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    server_name TEXT NOT NULL,
+                    log_source TEXT NOT NULL,
+                    rule TEXT NOT NULL,
+                    level TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    ip_address TEXT,
+                    username TEXT,
+                    timestamp DATETIME NOT NULL,
+                    acknowledged BOOLEAN DEFAULT FALSE,
+                    acknowledged_at DATETIME,
+                    acknowledged_by TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+
+    @contextmanager
+    def _get_connection(self):
+        conn = sqlite3.connect(self._db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     def save_alerts(self, alerts: Iterable[Alert]) -> int:
-        alerts_list = list(alerts)
-        if not alerts_list:
-            return 0
-        now = datetime.utcnow().isoformat()
-        with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
-            conn.executemany(
-                """
-                INSERT INTO alerts (server_name, source_log, timestamp, level, message, ip_address, rule, created_at, acknowledged, acknowledged_at, acknowledged_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        a.server_name,
-                        a.source_log,
-                        a.timestamp.isoformat(),
-                        a.level,
-                        a.message,
-                        a.ip_address,
-                        a.rule,
-                        now,
-                        a.acknowledged,
-                        a.acknowledged_at.isoformat() if a.acknowledged_at else None,
-                        a.acknowledged_by,
-                    )
-                    for a in alerts_list
-                ],
-            )
+        """Save multiple alerts and return count of saved alerts."""
+        saved_count = 0
+        with self._get_connection() as conn:
+            for alert in alerts:
+                cursor = conn.execute("""
+                    INSERT INTO alerts (server_name, log_source, rule, level, message, ip_address, username, timestamp, acknowledged, acknowledged_at, acknowledged_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    alert.server_name, alert.log_source, alert.rule, alert.level, alert.message,
+                    alert.ip_address, alert.username, alert.timestamp.isoformat(),
+                    alert.acknowledged, alert.acknowledged_at.isoformat() if alert.acknowledged_at else None,
+                    alert.acknowledged_by
+                ))
+                alert.id = cursor.lastrowid
+                saved_count += 1
             conn.commit()
-        return len(alerts_list)
+        return saved_count
 
-    def list_alerts(self, limit: int = 200, since: Optional[datetime] = None, acknowledged: Optional[bool] = None) -> List[Alert]:
-        query = "SELECT id, server_name, source_log, timestamp, level, message, ip_address, rule, acknowledged, acknowledged_at, acknowledged_by FROM alerts"
-        params: list = []
-        where_clauses = []
-        
-        if since is not None:
-            where_clauses.append("timestamp >= ?")
-            params.append(since.isoformat())
-        
-        if acknowledged is not None:
-            where_clauses.append("acknowledged = ?")
-            params.append(acknowledged)
-        
-        if where_clauses:
-            query += " WHERE " + " AND ".join(where_clauses)
-        
-        query += " ORDER BY timestamp DESC LIMIT ?"
-        params.append(int(limit))
-
-        with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
-            rows = conn.execute(query, params).fetchall()
-
-        alerts: List[Alert] = []
-        for r in rows:
-            alerts.append(
-                Alert(
-                    id=r[0],
-                    server_name=r[1],
-                    source_log=r[2],
-                    timestamp=datetime.fromisoformat(r[3]),
-                    level=r[4],
-                    message=r[5],
-                    ip_address=r[6],
-                    rule=r[7],
-                    acknowledged=bool(r[8]),
-                    acknowledged_at=datetime.fromisoformat(r[9]) if r[9] else None,
-                    acknowledged_by=r[10],
+    def list_alerts(self, server_name: Optional[str] = None, acknowledged: Optional[bool] = None, limit: Optional[int] = None) -> List[Alert]:
+        with self._get_connection() as conn:
+            query = "SELECT * FROM alerts WHERE 1=1"
+            params = []
+            
+            if server_name:
+                query += " AND server_name = ?"
+                params.append(server_name)
+            
+            if acknowledged is not None:
+                query += " AND acknowledged = ?"
+                params.append(acknowledged)
+            
+            query += " ORDER BY timestamp DESC"
+            
+            if limit:
+                query += " LIMIT ?"
+                params.append(limit)
+            
+            cursor = conn.execute(query, params)
+            alerts = []
+            for row in cursor.fetchall():
+                alert = Alert(
+                    id=row['id'],
+                    server_name=row['server_name'],
+                    log_source=row['log_source'],
+                    rule=row['rule'],
+                    level=row['level'],
+                    message=row['message'],
+                    ip_address=row['ip_address'],
+                    username=row['username'],
+                    timestamp=datetime.fromisoformat(row['timestamp']),
+                    acknowledged=bool(row['acknowledged']),
+                    acknowledged_at=datetime.fromisoformat(row['acknowledged_at']) if row['acknowledged_at'] else None,
+                    acknowledged_by=row['acknowledged_by']
                 )
-            )
-        return alerts
+                alerts.append(alert)
+            return alerts
 
     def acknowledge_alert(self, alert_id: int, acknowledged_by: str) -> bool:
-        """Mark an alert as acknowledged."""
-        now = datetime.utcnow()
-        with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
-            cursor = conn.execute(
-                """
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
                 UPDATE alerts 
                 SET acknowledged = TRUE, acknowledged_at = ?, acknowledged_by = ?
                 WHERE id = ?
-                """,
-                (now.isoformat(), acknowledged_by, alert_id),
-            )
+            """, (datetime.utcnow().isoformat(), acknowledged_by, alert_id))
             conn.commit()
             return cursor.rowcount > 0
 
     def acknowledge_alerts_by_rule(self, rule: str, acknowledged_by: str) -> int:
-        """Acknowledge all alerts with a specific rule."""
-        now = datetime.utcnow()
-        with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
-            cursor = conn.execute(
-                """
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
                 UPDATE alerts 
                 SET acknowledged = TRUE, acknowledged_at = ?, acknowledged_by = ?
                 WHERE rule = ? AND acknowledged = FALSE
-                """,
-                (now.isoformat(), acknowledged_by, rule),
-            )
+            """, (datetime.utcnow().isoformat(), acknowledged_by, rule))
             conn.commit()
             return cursor.rowcount
 
 
 class SQLiteStateRepository(StateRepository):
-    def __init__(self, db_path: str) -> None:
-        _ensure_db(db_path)
+    def __init__(self, db_path: str):
         self._db_path = db_path
+        self._init_db()
 
-    def get_last_seen_timestamp(self, server_name: str, log_path: str) -> Optional[datetime]:
-        with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
-            row = conn.execute(
-                "SELECT last_seen_ts FROM state WHERE server_name = ? AND log_path = ?",
-                (server_name, log_path),
-            ).fetchone()
-        if row and row[0]:
-            try:
-                return datetime.fromisoformat(row[0])
-            except Exception:
-                return None
-        return None
+    def _init_db(self):
+        with self._get_connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS collection_state (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    server_name TEXT NOT NULL,
+                    log_source TEXT NOT NULL,
+                    last_position TEXT NOT NULL,
+                    last_seen_timestamp TEXT NOT NULL,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(server_name, log_source)
+                )
+            """)
+            conn.commit()
 
-    def set_last_seen_timestamp(self, server_name: str, log_path: str, ts: datetime) -> None:
-        with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
-            conn.execute(
-                """
-                INSERT INTO state (server_name, log_path, last_seen_ts)
-                VALUES (?, ?, ?)
-                ON CONFLICT(server_name, log_path) DO UPDATE SET last_seen_ts=excluded.last_seen_ts
-                """,
-                (server_name, log_path, ts.isoformat()),
-            )
+    @contextmanager
+    def _get_connection(self):
+        conn = sqlite3.connect(self._db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    def get_last_seen_timestamp(self, server_name: str, log_source: str) -> Optional[str]:
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT last_seen_timestamp FROM collection_state 
+                WHERE server_name = ? AND log_source = ?
+            """, (server_name, log_source))
+            row = cursor.fetchone()
+            if row and row['last_seen_timestamp']:
+                try:
+                    # Try to parse the timestamp and return it as ISO string
+                    ts = datetime.fromisoformat(row['last_seen_timestamp'])
+                    return ts.isoformat()
+                except (ValueError, TypeError):
+                    # If parsing fails, return the raw string
+                    return row['last_seen_timestamp']
+            return None
+
+    def set_last_seen_timestamp(self, server_name: str, log_source: str, timestamp: str) -> None:
+        with self._get_connection() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO collection_state (server_name, log_source, last_position, last_seen_timestamp, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (server_name, log_source, "", timestamp, datetime.utcnow().isoformat()))
             conn.commit()
 
 
 class SQLiteServerRepository(ServerRepository):
-    def __init__(self, db_path: str) -> None:
-        _ensure_db(db_path)
+    def __init__(self, db_path: str):
         self._db_path = db_path
+        self._init_db()
 
-    def list_servers(self) -> List[Server]:
-        with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
-            rows = conn.execute(
-                "SELECT name, host, port, username, password, private_key_path, logs FROM servers ORDER BY name"
-            ).fetchall()
-        servers: List[Server] = []
-        for r in rows:
-            servers.append(
-                Server(
-                    name=r[0], host=r[1], port=int(r[2]), username=r[3], password=r[4], private_key_path=r[5], logs=json.loads(r[6])
+    def _init_db(self):
+        with self._get_connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS servers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL,
+                    host TEXT NOT NULL,
+                    port INTEGER NOT NULL,
+                    username TEXT NOT NULL,
+                    password TEXT,
+                    private_key_path TEXT,
+                    logs TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-            )
-        return servers
-
-    def upsert_server(self, server: Server) -> None:
-        logs_json = json.dumps(server.logs or [])
-        with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
-            conn.execute(
-                """
-                INSERT INTO servers (name, host, port, username, password, private_key_path, logs)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(name) DO UPDATE SET host=excluded.host, port=excluded.port, username=excluded.username,
-                    password=excluded.password, private_key_path=excluded.private_key_path, logs=excluded.logs
-                """,
-                (server.name, server.host, int(server.port), server.username, server.password, server.private_key_path, logs_json),
-            )
+            """)
             conn.commit()
 
-    def delete_server(self, name: str) -> None:
-        with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
-            conn.execute("DELETE FROM servers WHERE name = ?", (name,))
+    @contextmanager
+    def _get_connection(self):
+        conn = sqlite3.connect(self._db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    def save_server(self, server: Server) -> bool:
+        with self._get_connection() as conn:
+            # Convert logs list to comma-separated string
+            logs_str = ','.join(server.logs) if server.logs else ''
+            
+            if server.id:
+                # Update existing server
+                conn.execute("""
+                    UPDATE servers 
+                    SET name = ?, host = ?, port = ?, username = ?, password = ?, 
+                        private_key_path = ?, logs = ?, updated_at = ?
+                    WHERE id = ?
+                """, (
+                    server.name, server.host, server.port, server.username,
+                    server.password, server.private_key_path, logs_str,
+                    datetime.utcnow().isoformat(), server.id
+                ))
+            else:
+                # Insert new server
+                conn.execute("""
+                    INSERT INTO servers (name, host, port, username, password, private_key_path, logs)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    server.name, server.host, server.port, server.username,
+                    server.password, server.private_key_path, logs_str
+                ))
+            
             conn.commit()
+            return True
 
     def get_server(self, name: str) -> Optional[Server]:
-        with sqlite3.connect(self._db_path, check_same_thread=False) as conn:
-            row = conn.execute(
-                "SELECT name, host, port, username, password, private_key_path, logs FROM servers WHERE name = ?",
-                (name,),
-            ).fetchone()
-        if not row:
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT * FROM servers WHERE name = ?
+            """, (name,))
+            row = cursor.fetchone()
+            if row:
+                # Parse logs back to list
+                logs = row['logs'].split(',') if row['logs'] else []
+                return Server(
+                    id=row['id'],
+                    name=row['name'],
+                    host=row['host'],
+                    port=row['port'],
+                    username=row['username'],
+                    password=row['password'],
+                    private_key_path=row['private_key_path'],
+                    logs=logs
+                )
             return None
-        return Server(
-            name=row[0], host=row[1], port=int(row[2]), username=row[3], password=row[4], private_key_path=row[5], logs=json.loads(row[6])
-        )
+
+    def list_servers(self) -> List[Server]:
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM servers ORDER BY name")
+            servers = []
+            for row in cursor.fetchall():
+                # Parse logs back to list
+                logs = row['logs'].split(',') if row['logs'] else []
+                server = Server(
+                    id=row['id'],
+                    name=row['name'],
+                    host=row['host'],
+                    port=row['port'],
+                    username=row['username'],
+                    password=row['password'],
+                    private_key_path=row['private_key_path'],
+                    logs=logs
+                )
+                servers.append(server)
+            return servers
+
+    def delete_server(self, name: str) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute("DELETE FROM servers WHERE name = ?", (name,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+
+class SQLiteAlertExceptionRepository(AlertExceptionRepository):
+    def __init__(self, db_path: str):
+        self._db_path = db_path
+        self._init_db()
+
+    def _init_db(self):
+        with self._get_connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS alert_exceptions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    rule_type TEXT NOT NULL,
+                    value TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    enabled BOOLEAN DEFAULT TRUE,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+
+    @contextmanager
+    def _get_connection(self):
+        conn = sqlite3.connect(self._db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    def save_exception(self, exception: AlertException) -> bool:
+        with self._get_connection() as conn:
+            if exception.id:
+                # Update existing exception
+                conn.execute("""
+                    UPDATE alert_exceptions 
+                    SET rule_type = ?, value = ?, description = ?, enabled = ?, updated_at = ?
+                    WHERE id = ?
+                """, (
+                    exception.rule_type, exception.value, exception.description,
+                    exception.enabled, datetime.utcnow().isoformat(), exception.id
+                ))
+            else:
+                # Insert new exception
+                conn.execute("""
+                    INSERT INTO alert_exceptions (rule_type, value, description, enabled)
+                    VALUES (?, ?, ?, ?)
+                """, (
+                    exception.rule_type, exception.value, exception.description, exception.enabled
+                ))
+            
+            conn.commit()
+            return True
+
+    def list_exceptions(self) -> List[AlertException]:
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM alert_exceptions ORDER BY created_at DESC")
+            exceptions = []
+            for row in cursor.fetchall():
+                exception = AlertException(
+                    id=row['id'],
+                    rule_type=row['rule_type'],
+                    value=row['value'],
+                    description=row['description'],
+                    enabled=bool(row['enabled']),
+                    created_at=datetime.fromisoformat(row['created_at']),
+                    updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None
+                )
+                exceptions.append(exception)
+            return exceptions
+
+    def get_exception(self, exception_id: int) -> Optional[AlertException]:
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM alert_exceptions WHERE id = ?", (exception_id,))
+            row = cursor.fetchone()
+            if row:
+                return AlertException(
+                    id=row['id'],
+                    rule_type=row['rule_type'],
+                    value=row['value'],
+                    description=row['description'],
+                    enabled=bool(row['enabled']),
+                    created_at=datetime.fromisoformat(row['created_at']),
+                    updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None
+                )
+            return None
+
+    def update_exception(self, exception: AlertException) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                UPDATE alert_exceptions 
+                SET rule_type = ?, value = ?, description = ?, enabled = ?, updated_at = ?
+                WHERE id = ?
+            """, (
+                exception.rule_type, exception.value, exception.description,
+                exception.enabled, datetime.utcnow().isoformat(), exception.id
+            ))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def delete_exception(self, exception_id: int) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute("DELETE FROM alert_exceptions WHERE id = ?", (exception_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def is_alert_excepted(self, alert: Alert) -> bool:
+        with self._get_connection() as conn:
+            # Check all enabled exceptions
+            cursor = conn.execute("""
+                SELECT * FROM alert_exceptions WHERE enabled = TRUE
+            """)
+            
+            for row in cursor.fetchall():
+                rule_type = row['rule_type']
+                value = row['value']
+                
+                if rule_type == "ip" and alert.ip_address and value in alert.ip_address:
+                    return True
+                elif rule_type == "username" and alert.username and value in alert.username:
+                    return True
+                elif rule_type == "server" and value in alert.server_name:
+                    return True
+                elif rule_type == "log_source" and value in alert.log_source:
+                    return True
+                elif rule_type == "rule_pattern" and value in alert.rule:
+                    return True
+            
+            return False

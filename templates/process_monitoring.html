@@ -1,0 +1,316 @@
+{% extends "layout.html" %}
+
+{% block title %}Process Monitoring - VigilantRaccoon{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Process Monitoring</h1>
+    <p class="text-muted">Real-time monitoring of system processes, network connections, and file activities</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number" id="totalProcesses">-</div>
+        <div class="stat-label">Total Processes</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="activeConnections">-</div>
+        <div class="stat-label">Active Connections</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="suspiciousFiles">-</div>
+        <div class="stat-label">Suspicious Files</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="criticalAlerts">-</div>
+        <div class="stat-label">Critical Alerts</div>
+    </div>
+</div>
+
+<div class="filters-section">
+    <div class="filters-row">
+        <div class="filter-group">
+            <label for="serverFilter" class="form-label">Server</label>
+            <select id="serverFilter" class="form-select">
+                <option value="">All Servers</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="levelFilter" class="form-label">Alert Level</label>
+            <select id="levelFilter" class="form-select">
+                <option value="">All Levels</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="statusFilter" class="form-label">Status</label>
+            <select id="statusFilter" class="form-select">
+                <option value="">All Status</option>
+                <option value="false">Unacknowledged</option>
+                <option value="true">Acknowledged</option>
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button id="refreshBtn" class="btn btn-primary">Refresh</button>
+            <button id="clearFiltersBtn" class="btn btn-secondary">Clear Filters</button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3>Process Monitoring Alerts</h3>
+        <div class="d-flex align-items-center">
+            <span class="me-3">
+                <span class="text-success" id="acknowledgedCount">0</span> acknowledged |
+                <span class="text-danger" id="unacknowledgedCount">0</span> unacknowledged
+            </span>
+            <button id="acknowledgeAllBtn" class="btn btn-success btn-sm">Acknowledge All</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table" id="processAlertsTable">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Server</th>
+                        <th>Level</th>
+                        <th>Type</th>
+                        <th>Process/File</th>
+                        <th>Details</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="processAlertsTableBody">
+                    <tr>
+                        <td colspan="8" class="text-center text-muted">Loading process monitoring alerts...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allProcessAlerts = [];
+let filteredProcessAlerts = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadProcessMonitoringAlerts();
+    setupEventListeners();
+    
+    // Auto-refresh every 30 seconds
+    setInterval(loadProcessMonitoringAlerts, 30000);
+});
+
+function setupEventListeners() {
+    document.getElementById('refreshBtn').addEventListener('click', loadProcessMonitoringAlerts);
+    document.getElementById('clearFiltersBtn').addEventListener('click', clearFilters);
+    document.getElementById('acknowledgeAllBtn').addEventListener('click', acknowledgeAll);
+    
+    // Filter change events
+    document.getElementById('serverFilter').addEventListener('change', applyFilters);
+    document.getElementById('levelFilter').addEventListener('change', applyFilters);
+    document.getElementById('statusFilter').addEventListener('change', applyFilters);
+}
+
+async function loadProcessMonitoringAlerts() {
+    try {
+        const response = await fetch('/api/process-monitoring?limit=1000');
+        if (response.ok) {
+            allProcessAlerts = await response.json();
+            updateFilters();
+            applyFilters();
+            updateStatistics();
+        } else {
+            throw new Error('Failed to load process monitoring alerts');
+        }
+    } catch (error) {
+        console.error('Error loading process monitoring alerts:', error);
+        document.getElementById('processAlertsTableBody').innerHTML = 
+            '<tr><td colspan="8" class="text-center text-danger">Failed to load alerts</td></tr>';
+    }
+}
+
+function updateFilters() {
+    // Update server filter
+    const serverFilter = document.getElementById('serverFilter');
+    const servers = [...new Set(allProcessAlerts.map(a => a.server_name))].sort();
+    serverFilter.innerHTML = '<option value="">All Servers</option>' +
+        servers.map(s => `<option value="${s}">${s}</option>`).join('');
+}
+
+function applyFilters() {
+    const serverFilter = document.getElementById('serverFilter').value;
+    const levelFilter = document.getElementById('levelFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+    
+    filteredProcessAlerts = allProcessAlerts.filter(alert => {
+        if (serverFilter && alert.server_name !== serverFilter) return false;
+        if (levelFilter && alert.level !== levelFilter) return false;
+        if (statusFilter !== '' && alert.acknowledged.toString() !== statusFilter) return false;
+        return true;
+    });
+    
+    displayProcessAlerts();
+    updateCounts();
+}
+
+function displayProcessAlerts() {
+    const tbody = document.getElementById('processAlertsTableBody');
+    
+    if (filteredProcessAlerts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No process monitoring alerts found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = filteredProcessAlerts.map(alert => `
+        <tr>
+            <td>${formatTimestamp(alert.timestamp)}</td>
+            <td>${escapeHtml(alert.server_name)}</td>
+            <td><span class="status-badge status-${getLevelClass(alert.level)}">${alert.level}</span></td>
+            <td>${escapeHtml(alert.rule)}</td>
+            <td>${extractProcessInfo(alert.message)}</td>
+            <td>${escapeHtml(alert.message)}</td>
+            <td>
+                <span class="status-badge ${alert.acknowledged ? 'status-success' : 'status-warning'}">
+                    ${alert.acknowledged ? 'Acknowledged' : 'Unacknowledged'}
+                </span>
+            </td>
+            <td>
+                ${!alert.acknowledged ? 
+                    `<button class="btn btn-success btn-sm" onclick="acknowledgeAlert(${alert.id})">Ack</button>` : 
+                    '<span class="text-muted">-</span>'
+                }
+            </td>
+        </tr>
+    `).join('');
+}
+
+function updateCounts() {
+    const acknowledged = filteredProcessAlerts.filter(a => a.acknowledged).length;
+    const unacknowledged = filteredProcessAlerts.filter(a => !a.acknowledged).length;
+    
+    document.getElementById('acknowledgedCount').textContent = acknowledged;
+    document.getElementById('unacknowledgedCount').textContent = unacknowledged;
+}
+
+function updateStatistics() {
+    // Update statistics based on all alerts
+    const totalProcesses = allProcessAlerts.filter(a => a.rule.includes('process')).length;
+    const activeConnections = allProcessAlerts.filter(a => a.rule.includes('network')).length;
+    const suspiciousFiles = allProcessAlerts.filter(a => a.rule.includes('file')).length;
+    const criticalAlerts = allProcessAlerts.filter(a => a.level === 'critical' || a.level === 'high').length;
+    
+    document.getElementById('totalProcesses').textContent = totalProcesses;
+    document.getElementById('activeConnections').textContent = activeConnections;
+    document.getElementById('suspiciousFiles').textContent = suspiciousFiles;
+    document.getElementById('criticalAlerts').textContent = criticalAlerts;
+}
+
+function clearFilters() {
+    document.getElementById('serverFilter').value = '';
+    document.getElementById('levelFilter').value = '';
+    document.getElementById('statusFilter').value = '';
+    applyFilters();
+}
+
+async function acknowledgeAlert(alertId) {
+    try {
+        const response = await fetch(`/api/alerts/${alertId}/acknowledge`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            // Update local data
+            const alert = allProcessAlerts.find(a => a.id === alertId);
+            if (alert) alert.acknowledged = true;
+            
+            // Refresh display
+            applyFilters();
+            updateStatistics();
+        } else {
+            throw new Error('Failed to acknowledge alert');
+        }
+    } catch (error) {
+        console.error('Error acknowledging alert:', error);
+        alert('Failed to acknowledge alert');
+    }
+}
+
+async function acknowledgeAll() {
+    if (!confirm('Are you sure you want to acknowledge all unacknowledged process monitoring alerts?')) {
+        return;
+    }
+    
+    const unacknowledged = filteredProcessAlerts.filter(a => !a.acknowledged);
+    if (unacknowledged.length === 0) {
+        alert('No unacknowledged alerts to acknowledge');
+        return;
+    }
+    
+    try {
+        const promises = unacknowledged.map(alert => 
+            fetch(`/api/alerts/${alert.id}/acknowledge`, { method: 'POST' })
+        );
+        
+        await Promise.all(promises);
+        
+        // Update local data
+        unacknowledged.forEach(alert => {
+            const localAlert = allProcessAlerts.find(a => a.id === alert.id);
+            if (localAlert) localAlert.acknowledged = true;
+        });
+        
+        // Refresh display
+        applyFilters();
+        updateStatistics();
+        alert(`Successfully acknowledged ${unacknowledged.length} alerts`);
+    } catch (error) {
+        console.error('Error acknowledging all alerts:', error);
+        alert('Failed to acknowledge some alerts');
+    }
+}
+
+function getLevelClass(level) {
+    switch (level.toLowerCase()) {
+        case 'critical': return 'danger';
+        case 'high': return 'danger';
+        case 'medium': return 'warning';
+        case 'low': return 'info';
+        default: return 'secondary';
+    }
+}
+
+function extractProcessInfo(message) {
+    // Extract process name or file path from message
+    const processMatch = message.match(/(?:process|file|command):\s*([^\s]+)/i);
+    if (processMatch) {
+        return processMatch[1];
+    }
+    
+    // Fallback: extract first meaningful part
+    const parts = message.split(/\s+/);
+    return parts[0] || 'Unknown';
+}
+
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleString();
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

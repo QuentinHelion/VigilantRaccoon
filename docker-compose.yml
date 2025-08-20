@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  vigilant-raccoon:
+    build: .
+    container_name: vigilant-raccoon
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ~/.ssh:/home/vigilant/.ssh:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - vigilant-network
+
+  # Optional: Add a reverse proxy with nginx
+  nginx:
+    image: nginx:alpine
+    container_name: vigilant-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - vigilant-raccoon
+    restart: unless-stopped
+    networks:
+      - vigilant-network
+
+networks:
+  vigilant-network:
+    driver: bridge
+
+volumes:
+  vigilant-data:
+    driver: local
+  vigilant-logs:
+    driver: local

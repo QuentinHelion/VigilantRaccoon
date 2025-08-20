@@ -1,0 +1,161 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard - VigilantRaccoon{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>VigilantRaccoon</h1>
+    <p class="text-muted">Advanced Security Monitoring System</p>
+</div>
+
+<div class="action-cards">
+    <div class="action-card">
+        <div class="action-icon">Security</div>
+        <div class="action-title">Security Alerts</div>
+        <div class="action-description">Monitor and manage security alerts from all monitored servers. View real-time threats and suspicious activities.</div>
+        <a href="/alerts" class="btn btn-primary">View Security Alerts</a>
+    </div>
+
+    <div class="action-card">
+        <div class="action-icon">Server</div>
+        <div class="action-title">Server Management</div>
+        <div class="action-description">Configure and manage monitoring servers. Add new servers, edit configurations, and monitor connection status.</div>
+        <a href="/servers" class="btn btn-primary">Manage Servers</a>
+    </div>
+
+    <div class="action-card">
+        <div class="action-icon">Monitor</div>
+        <div class="action-title">Process Monitoring</div>
+        <div class="action-description">Monitor system processes, network connections, and file activities for suspicious behavior detection.</div>
+        <a href="/process-monitoring" class="btn btn-primary">View Process Monitoring</a>
+    </div>
+
+    <div class="action-card">
+        <div class="action-icon">Filter</div>
+        <div class="action-title">Alert Exceptions</div>
+        <div class="action-description">Configure alert filtering rules to reduce false positives and customize monitoring behavior.</div>
+        <a href="/exceptions" class="btn btn-primary">Manage Exceptions</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Administration</h3>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h4>Database Management</h4>
+                <p class="text-muted">Recreate the database from scratch. This will delete all existing data.</p>
+                <button id="recreateDbBtn" class="btn btn-danger">Recreate Database</button>
+                <div id="recreateStatus" class="mt-3 text-muted"></div>
+            </div>
+            <div class="col-md-6">
+                <h4>System Status</h4>
+                <p class="text-muted">Current system status and monitoring information.</p>
+                <div id="systemStatus">
+                    <p><strong>Status:</strong> <span class="text-success">Running</span></p>
+                    <p><strong>Monitored Servers:</strong> <span id="serverCount">Loading...</span></p>
+                    <p><strong>Active Alerts:</strong> <span id="alertCount">Loading...</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Quick Actions</h3>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <a href="/alerts" class="btn btn-outline-primary w-100 mb-2">View Latest Alerts</a>
+            </div>
+            <div class="col-md-4">
+                <a href="/servers" class="btn btn-outline-secondary w-100 mb-2">Check Server Status</a>
+            </div>
+            <div class="col-md-4">
+                <a href="/settings" class="btn btn-outline-info w-100 mb-2">System Settings</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load system statistics
+    loadSystemStats();
+    
+    // Database recreation functionality
+    document.getElementById('recreateDbBtn').addEventListener('click', function() {
+        if (confirm('Are you sure you want to recreate the database? This will delete ALL existing data!')) {
+            recreateDatabase();
+        }
+    });
+});
+
+function loadSystemStats() {
+    // Load server count
+    fetch('/api/servers')
+        .then(response => response.json())
+        .then(servers => {
+            document.getElementById('serverCount').textContent = servers.length;
+        })
+        .catch(error => {
+            console.error('Error loading server count:', error);
+            document.getElementById('serverCount').textContent = 'Error';
+        });
+    
+    // Load alert count
+    fetch('/api/alerts?limit=1')
+        .then(response => response.json())
+        .then(alerts => {
+            // Get total count from headers or response
+            document.getElementById('alertCount').textContent = alerts.length > 0 ? 'Active' : 'None';
+        })
+        .catch(error => {
+            console.error('Error loading alert count:', error);
+            document.getElementById('alertCount').textContent = 'Error';
+        });
+}
+
+function recreateDatabase() {
+    const btn = document.getElementById('recreateDbBtn');
+    const status = document.getElementById('recreateStatus');
+    
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+    status.textContent = 'Recreating database...';
+    
+    fetch('/api/recreate-db', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            status.textContent = 'Database recreated successfully!';
+            status.className = 'mt-3 text-success';
+            // Reload page after a delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            throw new Error(data.message || 'Unknown error');
+        }
+    })
+    .catch(error => {
+        console.error('Error recreating database:', error);
+        status.textContent = 'Error: ' + error.message;
+        status.className = 'mt-3 text-danger';
+        btn.disabled = false;
+        btn.textContent = 'Recreate Database';
+    });
+}
+</script>
+{% endblock %}
